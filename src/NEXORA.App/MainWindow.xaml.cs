@@ -148,11 +148,11 @@ namespace NEXORA.App
                 if (update == null)
                 {
                     if (userInitiated)
-                        MessageBox.Show("Şu anda en güncel sürümü kullanıyorsun.\\nSürüm: " + _updateService.CurrentVersion, "NEXORA Güncelleme", MessageBoxButton.OK, MessageBoxImage.Information);
+                        MessageBox.Show("Şu anda en güncel sürümü kullanıyorsun.\nSürüm: " + _updateService.CurrentVersion, "NEXORA Güncelleme", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
-                var choice = MessageBox.Show("Yeni NEXORA sürümü bulundu: " + update.Version + "\\nMevcut sürüm: " + _updateService.CurrentVersion + "\\n\\nGüncelleme şimdi indirilip otomatik olarak kurulsun mu?", "NEXORA Güncelleme", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                var choice = MessageBox.Show("Yeni NEXORA sürümü bulundu: " + update.Version + "\nMevcut sürüm: " + _updateService.CurrentVersion + "\n\nGüncelleme şimdi indirilip otomatik olarak kurulsun mu?", "NEXORA Güncelleme", MessageBoxButton.YesNo, MessageBoxImage.Information);
                 if (choice != MessageBoxResult.Yes) return;
 
                 await _updateService.DownloadAndApplyAsync(update);
@@ -161,7 +161,7 @@ namespace NEXORA.App
             catch (Exception ex)
             {
                 if (userInitiated)
-                    MessageBox.Show("Güncelleme tamamlanamadı.\\n\\n" + ex.Message, "NEXORA Güncelleme", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("Güncelleme tamamlanamadı.\n\n" + ex.Message, "NEXORA Güncelleme", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
