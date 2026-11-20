@@ -22,6 +22,8 @@ namespace NEXORA.App
         private readonly StorageService _storageService = new StorageService();
         private readonly NetworkService _networkService = new NetworkService();
         private readonly GameDetectionService _gameDetection = new GameDetectionService();
+        private readonly GameOptimizationService _gameOptimizer = new GameOptimizationService();
+        private readonly GpuDiagnosticsService _gpuDiagnostics = new GpuDiagnosticsService();
         private readonly SystemDiagnosticsService _diagnostics = new SystemDiagnosticsService();
         private readonly AppLogService _appLog = new AppLogService();
         private readonly DispatcherTimer _refreshTimer = new DispatcherTimer();
@@ -254,12 +256,33 @@ namespace NEXORA.App
 
         private void BuildGamingPage()
         {
-            AddInfoCard("Oyun algılama", "NEXORA bilinen oyun süreçlerini tarar. Oyun algılama tek başına FPS artışı sağlamaz ve oyunlara müdahale etmez.");
-            var games = _gameDetection.GetRunningGames();
-            AddInfoCard("Çalışan oyunlar (" + games.Count + ")", games.Count == 0 ? "Bilinen oyunlardan çalışan bir süreç algılanmadı." : string.Join("\n", games));
+            AddInfoCard("Gaming Center • Oyun oturumu", "Çalışan oyun süreçlerini algıla ve yalnızca seçtiğin oyunun işlem önceliğini yönet. Yüksek öncelik bazı sistemlerde diğer uygulamaların tepkisini azaltabilir; Gerçek Zamanlı (Realtime) kullanılmaz.");
+            var games = _gameOptimizer.GetRunningGames();
+            AddInfoCard("Algılanan oyun sayısı: " + games.Count, games.Count == 0 ? "Şu anda desteklenen oyunlardan biri çalışmıyor." : "İşlem önceliği: Normal veya High. Değişiklik yalnızca seçilen çalışan oyun süreci için geçerlidir.");
+            var list = new ListBox { Height = 220, Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0) };
+            foreach (var game in games)
+                list.Items.Add(new ListBoxItem { Content = game.Name + "  |  PID " + game.Id + "  |  Öncelik: " + game.Priority, Tag = game.Id, Padding = new Thickness(8) });
+            PageContent.Children.Add(list);
+            AddActionButton("Seçili oyuna yüksek öncelik ver", () =>
+            {
+                var selected = list.SelectedItem as ListBoxItem;
+                if (selected == null) { MessageBox.Show("Önce çalışan bir oyun seç."); return; }
+                if (MessageBox.Show("Seçilen oyun süreci High önceliğe alınacak. Bu FPS artışını garanti etmez. Devam?", "Oyun profili", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                try { _gameOptimizer.SetHighPriority(Convert.ToInt32(selected.Tag)); _appLog.Write("INFO", "Game process priority set to High: PID " + selected.Tag); MessageBox.Show("İşlem önceliği High olarak ayarlandı."); RefreshCurrentPage(); }
+                catch (Exception ex) { MessageBox.Show("Öncelik değiştirilemedi: " + ex.Message, "Gaming Center", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            });
+            AddActionButton("Seçili oyunun önceliğini normale döndür", () =>
+            {
+                var selected = list.SelectedItem as ListBoxItem;
+                if (selected == null) { MessageBox.Show("Önce çalışan bir oyun seç."); return; }
+                try { _gameOptimizer.RestoreNormalPriority(Convert.ToInt32(selected.Tag)); _appLog.Write("INFO", "Game process priority restored: PID " + selected.Tag); MessageBox.Show("İşlem önceliği Normal yapıldı."); RefreshCurrentPage(); }
+                catch (Exception ex) { MessageBox.Show("Öncelik geri alınamadı: " + ex.Message, "Gaming Center", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            });
             AddActionButton("Oyunları yeniden tara", RefreshCurrentPage);
             AddActionButton("Windows Oyun Modu ayarlarını aç", () => Launch("ms-settings:gaming-gamemode"));
             AddActionButton("Xbox Game Bar ayarlarını aç", () => Launch("ms-settings:gaming-gamebar"));
+            AddActionButton("Grafik tercihleri ayarlarını aç", () => Launch("ms-settings:display-advancedgraphics"));
+            AddActionButton("Oyun yakalama ayarlarını aç", () => Launch("ms-settings:gaming-captures"));
         }
 
         private void BuildQuickBoostPage()
@@ -299,7 +322,10 @@ namespace NEXORA.App
         {
             AddInfoCard("Canlı donanım özeti", "Dashboard üzerindeki CPU, RAM, GPU modeli ve sistem çalışma süresi bilgileri 5 saniyede bir yenilenir. Bazı GPU sıcaklığı, fan hızı ve güç sensörleri donanıma veya sürücüye bağlı olarak kullanılamayabilir.");
             AddActionButton("Şimdi yenile", async () => await RefreshSystemInfoAsync());
-            AddInfoCard("Sensör doğruluğu", "NEXORA desteklenmeyen sensörler için tahmini değer üretmez. Ayrıntılı sıcaklık ve fan izleme sonraki modüllerde eklenecek.");
+            foreach (string detail in _gpuDiagnostics.GetAdapters()) AddInfoCard("GPU / Ekran bağdaştırıcısı", detail);
+            AddInfoCard("Sensör doğruluğu", "Bu sürüm GPU sürücüsü ve bağdaştırıcı bilgilerini WMI üzerinden okur. GPU sıcaklığı, fan devri ve gerçek zamanlı VRAM kullanımı her sürücü tarafından sunulmadığı için henüz desteklenmiyor; sahte değer gösterilmez.");
+            AddActionButton("Aygıt Yöneticisi • Görüntü bağdaştırıcıları", () => Launch("devmgmt.msc"));
+            AddActionButton("Windows gelişmiş ekran ayarları", () => Launch("ms-settings:display-advanced"));
         }
 
         private void BuildWindowsToolsPage()
