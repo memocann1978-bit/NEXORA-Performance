@@ -97,7 +97,8 @@ namespace NEXORA.App
             PageSubtitle.Text = "NEXORA Performance • " + (key == "windows" ? "Yerleşik Windows araçları" : "Preview");
             if (key == "windows") BuildWindowsToolsPage();
             else if (key == "settings") BuildSettingsPage();
-            else if (key == "hardware" || key == "gpu") BuildHardwarePage();
+            else if (key == "hardware") BuildHardwarePage();
+            else if (key == "gpu") BuildGpuPage();
             else if (key == "processes") BuildProcessesPage();
             else if (key == "startup") BuildStartupPage();
             else if (key == "services") BuildServicesPage();
@@ -573,6 +574,33 @@ namespace NEXORA.App
             AddInfoCard("Sistem geri yükleme", "Windows geri yükleme noktaları sistem değişikliklerini geri almayı kolaylaştırabilir. NEXORA henüz otomatik geri yükleme noktası oluşturmaz; Windows'un yerleşik koruma ekranını açar.");
             AddActionButton("Sistem Koruması ayarlarını aç", () => Launch("SystemPropertiesProtection.exe"));
             AddActionButton("Sistem geri yüklemeyi başlat", () => Launch("rstrui.exe"));
+        }
+
+        private void BuildGpuPage()
+        {
+            AddInfoCard("GPU Merkezi • Grafik donanımı", "Ekran kartı adı, sürücü, raporlanan bellek ve ekran modu bilgileri Windows WMI verilerinden okunur. Bazı sürücüler bellek veya yenileme hızı bilgisini eksik raporlayabilir.");
+            var adapters = _gpuDiagnostics.GetAdapters();
+            foreach (string detail in adapters)
+            {
+                if (detail == "----------------------------------------") continue;
+                AddInfoCard("Grafik bağdaştırıcısı", detail);
+            }
+            AddInfoCard("Sürücü ve sensör notu", "GPU sıcaklığı, kullanım yüzdesi, fan devri ve gerçek VRAM kullanımı bu temel WMI sorgusuyla güvenilir biçimde alınamaz. Desteklenmeyen sensörler için tahmini değer gösterilmez.");
+            AddActionButton("GPU bilgilerini yenile", RefreshCurrentPage);
+            AddActionButton("Windows grafik performansı tercihleri", () => Launch("ms-settings:display-advancedgraphics"));
+            AddActionButton("Ekran çözünürlüğü ve yenileme hızı", () => Launch("ms-settings:display-advanced"));
+            AddActionButton("Aygıt Yöneticisi", () => Launch("devmgmt.msc"));
+            AddActionButton("DirectX tanı aracı", () => Launch("dxdiag.exe"));
+            AddActionButton("NVIDIA Denetim Masası", () => Launch("control.exe", "/name NVIDIA.ControlPanel"));
+            AddActionButton("GPU raporunu panoya kopyala", () =>
+            {
+                try
+                {
+                    Clipboard.SetText("NEXORA GPU REPORT" + Environment.NewLine + string.Join(Environment.NewLine, adapters));
+                    MessageBox.Show("GPU raporu panoya kopyalandı.", "NEXORA", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex) { MessageBox.Show("Rapor kopyalanamadı: " + ex.Message, "NEXORA", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            });
         }
 
         private void BuildHardwarePage()
