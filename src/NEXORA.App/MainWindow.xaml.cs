@@ -416,11 +416,35 @@ namespace NEXORA.App
 
         private void BuildStartupPage()
         {
-            AddInfoCard("Başlangıç uygulamaları", "Windows kullanıcı ve bilgisayar Run kayıtlarından okunan başlangıç girdileri. Bu ekranda şimdilik salt okunur liste sunulur; girdiler otomatik silinmez.");
-            var entries = _startupService.GetEntries();
-            if (entries.Count == 0) AddInfoCard("Kayıt bulunamadı", "Desteklenen başlangıç kayıt konumlarında uygulama bulunamadı veya erişim engellendi.");
+            AddInfoCard("Başlangıç uygulamaları", "Kullanıcı Run girdilerini NEXORA içinden devre dışı bırakıp geri yükleyebilirsin. Bilgisayar genelindeki girdiler salt okunurdur. Devre dışı bırakma girdiyi silmez; NEXORA kayıt alanına taşır.");
+            var entries = _startupService.GetAllEntries();
+            var list = new ListBox { Height = 330, Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0) };
             foreach (var item in entries)
-                AddInfoCard(item.Name + " • " + item.Location, item.Command);
+                list.Items.Add(new ListBoxItem { Content = item.Name + "  |  " + item.Location + "  |  " + item.Command, Tag = item, Padding = new Thickness(7) });
+            PageContent.Children.Add(list);
+            AddActionButton("Seçili kullanıcı girdisini devre dışı bırak", () =>
+            {
+                var selected = list.SelectedItem as ListBoxItem;
+                var entry = selected == null ? null : selected.Tag as StartupEntry;
+                if (entry == null) { MessageBox.Show("Önce bir başlangıç girdisi seç."); return; }
+                if (!string.Equals(entry.Location, "Kullanıcı", StringComparison.OrdinalIgnoreCase))
+                { MessageBox.Show("Bilgisayar genelindeki girdiler bu ekrandan değiştirilemez."); return; }
+                if (MessageBox.Show(entry.Name + " başlangıçtan çıkarılacak. İstediğinde geri yükleyebilirsin. Devam?", "Başlangıç yönetimi", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                try { _startupService.DisableCurrentUserEntry(entry.Name); _appLog.Write("INFO", "Disabled startup entry: " + entry.Name); RefreshCurrentPage(); }
+                catch (Exception ex) { MessageBox.Show(ex.Message, "Başlangıç yönetimi"); }
+            });
+            var disabled = _startupService.GetDisabledEntries();
+            var restoreList = new ListBox { Height = 130, Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0) };
+            foreach (var name in disabled) restoreList.Items.Add(name);
+            AddInfoCard("NEXORA tarafından devre dışı bırakılanlar", disabled.Count == 0 ? "Geri yüklenecek kayıt bulunmuyor." : disabled.Count + " kayıt");
+            PageContent.Children.Add(restoreList);
+            AddActionButton("Seçili girdiyi geri yükle", () =>
+            {
+                var name = restoreList.SelectedItem as string;
+                if (string.IsNullOrWhiteSpace(name)) { MessageBox.Show("Önce geri yüklenecek girdiyi seç."); return; }
+                try { _startupService.RestoreDisabledEntry(name); _appLog.Write("INFO", "Restored startup entry: " + name); RefreshCurrentPage(); }
+                catch (Exception ex) { MessageBox.Show(ex.Message, "Başlangıç yönetimi"); }
+            });
             AddActionButton("Başlangıç Uygulamaları klasörünü aç", () => Launch("shell:startup"));
             AddActionButton("Görev Yöneticisi başlangıç sekmesini aç", () => Launch("taskmgr.exe"));
         }
