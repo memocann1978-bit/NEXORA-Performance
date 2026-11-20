@@ -2,7 +2,7 @@
   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="238"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
     <Border Grid.Column="0" Background="#10131A" Padding="18"><DockPanel>
       <StackPanel DockPanel.Dock="Top">
-        <StackPanel Orientation="Horizontal" Margin="4,8,0,30"><Border Width="34" Height="34" CornerRadius="9" Background="{StaticResource AccentBrush}"><TextBlock Text="N" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><StackPanel Margin="10,0,0,0"><TextBlock Text="NEXORA" FontSize="19" FontWeight="Bold" /><TextBlock Text="PERFORMANCE" FontSize="9" Foreground="{StaticResource MutedBrush}" CharacterSpacing="180"/></StackPanel></StackPanel>
+        <StackPanel Orientation="Horizontal" Margin="4,8,0,30"><Border Width="34" Height="34" CornerRadius="9" Background="{StaticResource AccentBrush}"><TextBlock Text="N" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><StackPanel Margin="10,0,0,0"><TextBlock Text="NEXORA" FontSize="19" FontWeight="Bold" /><TextBlock Text="PERFORMANCE" FontSize="9" Foreground="{StaticResource MutedBrush}"/></StackPanel></StackPanel>
         <TextBlock Text="WORKSPACE" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold" Margin="8,0,0,10"/>
         <Button Content="▦   Genel Bakış" Tag="dashboard" Click="Navigate_Click" Background="#29202A" Margin="0,2"/>
         <Button Content="⚡   Quick Boost" Tag="boost" Click="Navigate_Click" Margin="0,2"/>
