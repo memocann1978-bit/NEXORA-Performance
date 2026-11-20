@@ -56,7 +56,7 @@ namespace NEXORA.App.Services
                     throw new InvalidDataException("Yayın sürüm numarası geçersiz.");
 
                 string downloadUrl = null;
-                var assets = release["assets"] as ArrayList;
+                var assets = release["assets"] as IEnumerable;
                 if (assets != null)
                 {
                     foreach (var item in assets)
