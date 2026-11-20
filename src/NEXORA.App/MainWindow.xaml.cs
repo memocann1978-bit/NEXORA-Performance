@@ -26,6 +26,8 @@ namespace NEXORA.App
         private readonly GpuDiagnosticsService _gpuDiagnostics = new GpuDiagnosticsService();
         private readonly SystemDiagnosticsService _diagnostics = new SystemDiagnosticsService();
         private readonly AppLogService _appLog = new AppLogService();
+        private readonly PackageManagerService _packageManager = new PackageManagerService();
+        private readonly WindowsRepairService _repairService = new WindowsRepairService();
         private readonly DispatcherTimer _refreshTimer = new DispatcherTimer();
         private readonly List<UIElement> _dashboardElements = new List<UIElement>();
         private bool _refreshInProgress;
@@ -75,7 +77,7 @@ namespace NEXORA.App
             _currentPageKey = key;
             var titles = new Dictionary<string, string>
             {
-                {"dashboard","Genel Bakış"},{"boost","Quick Boost"},{"gaming","Gaming Center"},
+                {"dashboard","Genel Bakış"},{"boost","Quick Boost"},{"gaming","Gaming Center"},{"apps","Uygulama Yöneticisi"},{"tweaks","Windows Tweaks"},{"repair","Windows Onarım"},{"features","Windows Özellikleri"},
                 {"hardware","Donanım İzleme"},{"processes","İşlem Yöneticisi"},
                 {"startup","Başlangıç Uygulamaları"},{"services","Windows Hizmetleri"},{"storage","Depolama Temizliği"},{"network","Ağ Merkezi"},{"gpu","GPU Merkezi"},{"benchmark","Performans Testi"},{"logs","Sistem Günlükleri"},{"restore","Geri Yükleme"},{"windows","Windows Araçları"},{"settings","Ayarlar"}
             };
@@ -104,6 +106,10 @@ namespace NEXORA.App
             else if (key == "restore") BuildRestorePage();
             else if (key == "boost") BuildQuickBoostPage();
             else if (key == "gaming") BuildGamingPage();
+            else if (key == "apps") BuildAppsPage();
+            else if (key == "tweaks") BuildTweaksPage();
+            else if (key == "repair") BuildRepairPage();
+            else if (key == "features") BuildFeaturesPage();
             else BuildComingSoonPage(key, titles.ContainsKey(key) ? titles[key] : "Modül");
         }
 
@@ -131,6 +137,121 @@ namespace NEXORA.App
             AddInfoCard(title, message);
         }
 
+
+
+        private void BuildAppsPage()
+        {
+            AddInfoCard("Uygulama Yöneticisi • WinGet", "Uygulamaları tek merkezden kur, seçili uygulamaları güncelle veya tüm paketleri yükselt. Kurulumlar Microsoft WinGet üzerinden yapılır; NEXORA üçüncü taraf kurulum dosyalarını barındırmaz.");
+            if (!_packageManager.IsWingetAvailable())
+            {
+                AddInfoCard("WinGet bulunamadı", "Uygulama kurulumları için Windows App Installer / WinGet gerekir. Microsoft Store'dan App Installer yükleyip bu sayfayı yenile.");
+                AddActionButton("Microsoft App Installer sayfasını aç", () => Launch("ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1"));
+                AddActionButton("WinGet belgelerini aç", () => Launch("https://learn.microsoft.com/windows/package-manager/winget/"));
+                return;
+            }
+            AddInfoCard("Paket yöneticisi hazır", "WinGet kullanılabilir. Bir uygulama seçip yükleyebilirsin. Bazı paketler yönetici izni veya etkileşimli onay isteyebilir.");
+            var search = new TextBox { Height = 36, Padding = new Thickness(10), Margin = new Thickness(0, 0, 0, 10), Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0), ToolTip = "Uygulama ara" };
+            PageContent.Children.Add(search);
+            var packages = new List<PackageEntry>
+            {
+                new PackageEntry{Name="7-Zip",Id="7zip.7zip",Category="Araçlar"},
+                new PackageEntry{Name="Google Chrome",Id="Google.Chrome",Category="Tarayıcı"},
+                new PackageEntry{Name="Mozilla Firefox",Id="Mozilla.Firefox",Category="Tarayıcı"},
+                new PackageEntry{Name="Brave",Id="Brave.Brave",Category="Tarayıcı"},
+                new PackageEntry{Name="Opera",Id="Opera.Opera",Category="Tarayıcı"},
+                new PackageEntry{Name="VLC Media Player",Id="VideoLAN.VLC",Category="Medya"},
+                new PackageEntry{Name="Discord",Id="Discord.Discord",Category="İletişim"},
+                new PackageEntry{Name="Steam",Id="Valve.Steam",Category="Oyun"},
+                new PackageEntry{Name="Epic Games Launcher",Id="EpicGames.EpicGamesLauncher",Category="Oyun"},
+                new PackageEntry{Name="OBS Studio",Id="OBSProject.OBSStudio",Category="Medya"},
+                new PackageEntry{Name="Visual Studio Code",Id="Microsoft.VisualStudioCode",Category="Geliştirme"},
+                new PackageEntry{Name="Git",Id="Git.Git",Category="Geliştirme"},
+                new PackageEntry{Name="Notepad++",Id="Notepad++.Notepad++",Category="Geliştirme"},
+                new PackageEntry{Name="Microsoft PowerToys",Id="Microsoft.PowerToys",Category="Araçlar"},
+                new PackageEntry{Name="ShareX",Id="ShareX.ShareX",Category="Araçlar"},
+                new PackageEntry{Name="Spotify",Id="Spotify.Spotify",Category="Medya"}
+            };
+            var list = new ListBox { Height = 340, Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0), SelectionMode = SelectionMode.Extended };
+            PageContent.Children.Add(list);
+            Action populate = () =>
+            {
+                list.Items.Clear();
+                string term = search.Text.Trim();
+                foreach (var package in packages.Where(p => string.IsNullOrEmpty(term) || p.Name.IndexOf(term,StringComparison.OrdinalIgnoreCase)>=0 || p.Category.IndexOf(term,StringComparison.OrdinalIgnoreCase)>=0))
+                    list.Items.Add(new ListBoxItem { Content = package.Name + "   •   " + package.Category + "   |   " + package.Id, Tag = package, Padding = new Thickness(8) });
+            };
+            search.TextChanged += (s,e) => populate();
+            populate();
+            AddActionButton("Seçili uygulamaları yükle", async () =>
+            {
+                var selected = list.SelectedItems.Cast<ListBoxItem>().Select(i => i.Tag as PackageEntry).Where(p => p != null).ToList();
+                if (selected.Count == 0) { MessageBox.Show("Önce bir veya daha fazla uygulama seç."); return; }
+                if (MessageBox.Show(selected.Count + " uygulama WinGet ile kurulacak. Devam?", "Uygulama kurulumu", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                foreach (var package in selected)
+                {
+                    PageSubtitle.Text = "Yükleniyor: " + package.Name;
+                    try { string output = await _packageManager.InstallAsync(package.Id); _appLog.Write("INFO","WinGet install "+package.Id+"\n"+output); }
+                    catch (Exception ex) { _appLog.Write("ERROR","WinGet install "+package.Id+": "+ex.Message); MessageBox.Show(package.Name+" yüklenemedi: "+ex.Message); }
+                }
+                PageSubtitle.Text = "Seçilen uygulama kurulumları tamamlandı.";
+                MessageBox.Show("Kurulum kuyruğu tamamlandı. Ayrıntılar Sistem Günlükleri bölümüne kaydedildi.");
+            });
+            AddActionButton("Tüm uygulamaları güncelle", async () =>
+            {
+                if (MessageBox.Show("WinGet destekli yüklü uygulamalar yükseltilecek. Devam?", "Toplu güncelleme", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                try { PageSubtitle.Text = "Uygulamalar güncelleniyor..."; string output = await _packageManager.UpgradeAllAsync(); _appLog.Write("INFO","WinGet upgrade all\n"+output); MessageBox.Show(output,"WinGet güncelleme sonucu"); }
+                catch (Exception ex) { MessageBox.Show(ex.Message,"WinGet"); }
+                PageSubtitle.Text = "Uygulama yöneticisi";
+            });
+            AddActionButton("WinGet kaynaklarını görüntüle", () => Launch("cmd.exe", "/k winget source list"));
+        }
+
+        private void BuildTweaksPage()
+        {
+            AddInfoCard("Windows Tweaks • Ayar merkezi", "WinUtil yaklaşımındaki gibi Windows ayarlarını kategorilere ayırıyoruz. Bu ilk merkezde her işlem Windows'un kendi ayar ekranını açar; gizli kayıt defteri değişikliği veya güvenlik kapatma yapılmaz.");
+            AddInfoCard("Oyun ve performans", "Oyun Modu, grafik tercihleri, görsel efektler ve güç planı ayarları.");
+            AddActionButton("Oyun Modu", () => Launch("ms-settings:gaming-gamemode"));
+            AddActionButton("Grafik performansı tercihleri", () => Launch("ms-settings:display-advancedgraphics"));
+            AddActionButton("Görsel efektler / performans seçenekleri", () => Launch("SystemPropertiesPerformance.exe"));
+            AddActionButton("Güç planları", () => Launch("powercfg.cpl"));
+            AddActionButton("Başlangıç uygulamalarını yönet", () => Launch("ms-settings:startupapps"));
+            AddInfoCard("Gizlilik ve arka plan", "Gizlilik, izinler ve arka plan uygulamalarını Windows ayarlarından yönet.");
+            AddActionButton("Gizlilik ana sayfası", () => Launch("ms-settings:privacy"));
+            AddActionButton("Arka plan uygulamaları / izinleri", () => Launch("ms-settings:privacy-backgroundapps"));
+            AddActionButton("Tanılama ve geri bildirim", () => Launch("ms-settings:privacy-feedback"));
+            AddActionButton("Reklam kimliği ve öneriler", () => Launch("ms-settings:privacy-general"));
+            AddInfoCard("Windows arayüzü", "Kişiselleştirme, görev çubuğu ve bildirimler.");
+            AddActionButton("Kişiselleştirme", () => Launch("ms-settings:personalization"));
+            AddActionButton("Görev çubuğu", () => Launch("ms-settings:taskbar"));
+            AddActionButton("Bildirimler", () => Launch("ms-settings:notifications"));
+            AddInfoCard("Geri alma prensibi", "İleride eklenecek gerçek tweak anahtarları için NEXORA önce mevcut değeri yedekleyecek, değişiklik kaydı tutacak ve geri yükleme sunacak. Bu ekrandaki kısayollar Windows ayarlarını doğrudan değiştirmez.");
+        }
+
+        private void BuildRepairPage()
+        {
+            AddInfoCard("Windows Onarım Merkezi", "Windows'un resmi sistem onarım komutlarını çalıştır. Bazı işlemler yönetici izni ister ve uzun sürebilir. Komut penceresi açılır; işlem sürerken kapatma.");
+            AddActionButton("SFC • Sistem dosyalarını tara", () => Launch("cmd.exe", "/k sfc /scannow"));
+            AddActionButton("DISM • Bileşen deposu sağlık kontrolü", () => Launch("cmd.exe", "/k DISM /Online /Cleanup-Image /CheckHealth"));
+            AddActionButton("DISM • Bileşen deposunu onar", () =>
+            {
+                if (MessageBox.Show("DISM çevrimiçi Windows imajını onarmayı deneyecek. İnternet bağlantısı ve yönetici izni gerekebilir. Devam?", "Windows onarımı", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+                    Launch("cmd.exe", "/k DISM /Online /Cleanup-Image /RestoreHealth");
+            });
+            AddActionButton("Disk • Çevrimiçi tarama (C:)", () => Launch("cmd.exe", "/k chkdsk C: /scan"));
+            AddActionButton("Windows Update sorun giderme", () => Launch("ms-settings:troubleshoot"));
+            AddActionButton("Windows Update ayarları", () => Launch("ms-settings:windowsupdate"));
+            AddActionButton("Güncelleme geçmişi", () => Launch("ms-settings:windowsupdate-history"));
+        }
+
+        private void BuildFeaturesPage()
+        {
+            AddInfoCard("Windows Özellikleri", "Windows isteğe bağlı özelliklerini yerleşik Windows penceresinden yönet. Değişiklikler Windows tarafından uygulanır; bazıları yeniden başlatma gerektirir.");
+            AddActionButton("Windows özelliklerini aç veya kapat", () => Launch("optionalfeatures.exe"));
+            AddActionButton("Windows Sandbox / sanallaştırma ayarları", () => Launch("appwiz.cpl"));
+            AddActionButton("Geliştirici ayarları", () => Launch("ms-settings:developers"));
+            AddActionButton("Windows Güvenliği", () => Launch("windowsdefender:"));
+            AddInfoCard("Not", "NEXORA Windows Defender, güvenlik duvarı veya Windows Update korumalarını kapatmaz. İleri seviye özellik değişikliklerinde Windows'un onay ekranı kullanılır.");
+        }
 
         private void BuildProcessesPage()
         {
