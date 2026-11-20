@@ -52,16 +52,75 @@ namespace NEXORA.App.Services
 
     public sealed class StartupService
     {
+        private const string UserRun = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        private const string DisabledRun = @"Software\NEXORA\DisabledStartup";
+
         public List<StartupEntry> GetEntries()
         {
             var result = new List<StartupEntry>();
-            ReadRunKey(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Run", "Kullanıcı");
-            ReadRunKey(Registry.LocalMachine, @"Software\Microsoft\Windows\CurrentVersion\Run", "Bilgisayar");
+            ReadRunKey(Registry.CurrentUser, UserRun, "Kullanıcı");
+            ReadRunKey(Registry.LocalMachine, UserRun, "Bilgisayar");
             return result;
-            void ReadRunKey(RegistryKey root, string path, string label)
+        }
+
+        private void ReadRunKey(RegistryKey root, string path, string label)
+        {
+            try
             {
-                try { using (var key = root.OpenSubKey(path)) { if (key == null) return; foreach (var name in key.GetValueNames()) result.Add(new StartupEntry { Name = name, Command = Convert.ToString(key.GetValue(name)), Location = label }); } } catch { }
+                using (var key = root.OpenSubKey(path))
+                {
+                    if (key == null) return;
+                    foreach (var name in key.GetValueNames())
+                        resultAdd(name, Convert.ToString(key.GetValue(name)), label);
+                }
             }
+            catch { }
+        }
+
+        private readonly List<StartupEntry> _readBuffer = new List<StartupEntry>();
+        private void resultAdd(string name, string command, string label)
+        {
+            _readBuffer.Add(new StartupEntry { Name = name, Command = command, Location = label });
+        }
+
+        public List<StartupEntry> GetAllEntries()
+        {
+            _readBuffer.Clear();
+            ReadRunKey(Registry.CurrentUser, UserRun, "Kullanıcı");
+            ReadRunKey(Registry.LocalMachine, UserRun, "Bilgisayar");
+            return _readBuffer.ToList();
+        }
+
+        public void DisableCurrentUserEntry(string name)
+        {
+            using (var source = Registry.CurrentUser.OpenSubKey(UserRun, true))
+            using (var target = Registry.CurrentUser.CreateSubKey(DisabledRun))
+            {
+                if (source == null) throw new InvalidOperationException("Kullanıcı başlangıç anahtarı bulunamadı.");
+                object value = source.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+                if (value == null) throw new InvalidOperationException("Başlangıç girdisi artık mevcut değil.");
+                target.SetValue(name, value, source.GetValueKind(name));
+                source.DeleteValue(name, false);
+            }
+        }
+
+        public void RestoreDisabledEntry(string name)
+        {
+            using (var source = Registry.CurrentUser.OpenSubKey(DisabledRun, true))
+            using (var target = Registry.CurrentUser.CreateSubKey(UserRun))
+            {
+                if (source == null) throw new InvalidOperationException("Devre dışı bırakılmış girdi bulunamadı.");
+                object value = source.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+                if (value == null) throw new InvalidOperationException("Geri yüklenecek girdi bulunamadı.");
+                target.SetValue(name, value, source.GetValueKind(name));
+                source.DeleteValue(name, false);
+            }
+        }
+
+        public List<string> GetDisabledEntries()
+        {
+            try { using (var key = Registry.CurrentUser.OpenSubKey(DisabledRun)) return key == null ? new List<string>() : key.GetValueNames().ToList(); }
+            catch { return new List<string>(); }
         }
     }
 
