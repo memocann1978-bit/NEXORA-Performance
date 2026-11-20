@@ -116,7 +116,7 @@ namespace NEXORA.App.Services
                     ":waitforapp\r\n" +
                     "tasklist /FI \"PID eq %APP_PID%\" | find \"%APP_PID%\" >nul\r\n" +
                     "if not errorlevel 1 (timeout /t 1 /nobreak >nul & goto waitforapp)\r\n" +
-                    "xcopy \\"" + extractPath + "\\\\*" + "\\" \\"" + appDirectory + "\\" /E /I /Y >nul\\r\\n" +
+                    "xcopy \"" + extractPath + "\\*" + "\" \"" + appDirectory + "\" /E /I /Y >nul\r\n" +
                     "start \"\" \"" + executable + "\"\r\n" +
                     "timeout /t 2 /nobreak >nul\r\n" +
                     "rd /s /q \"" + tempRoot + "\"\r\n" +
