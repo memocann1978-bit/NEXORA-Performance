@@ -159,6 +159,83 @@ namespace NEXORA.App.Services
         }
     }
 
+
+    public sealed class GameProcessEntry
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Priority { get; set; }
+    }
+
+    public sealed class GameOptimizationService
+    {
+        private static readonly string[] GameNames = { "gta_sa", "gta5", "gta5_fivem", "FiveM", "FiveM_GTAProcess", "cs2", "csgo", "VALORANT", "VALORANT-Win64-Shipping", "FortniteClient-Win64-Shipping", "r5apex", "League of Legends", "Overwatch", "Minecraft" };
+
+        public List<GameProcessEntry> GetRunningGames()
+        {
+            var result = new List<GameProcessEntry>();
+            foreach (var process in Process.GetProcesses())
+            {
+                try
+                {
+                    if (!GameNames.Any(n => process.ProcessName.IndexOf(n, StringComparison.OrdinalIgnoreCase) >= 0)) continue;
+                    result.Add(new GameProcessEntry { Id = process.Id, Name = process.ProcessName, Priority = process.PriorityClass.ToString() });
+                }
+                catch { }
+                finally { process.Dispose(); }
+            }
+            return result.OrderBy(x => x.Name).ToList();
+        }
+
+        public void SetHighPriority(int processId)
+        {
+            using (var process = Process.GetProcessById(processId))
+            {
+                if (!GameNames.Any(n => process.ProcessName.IndexOf(n, StringComparison.OrdinalIgnoreCase) >= 0))
+                    throw new InvalidOperationException("Bu işlem tanınan bir oyun süreci değil.");
+                process.PriorityClass = ProcessPriorityClass.High;
+            }
+        }
+
+        public void RestoreNormalPriority(int processId)
+        {
+            using (var process = Process.GetProcessById(processId))
+            {
+                if (!GameNames.Any(n => process.ProcessName.IndexOf(n, StringComparison.OrdinalIgnoreCase) >= 0))
+                    throw new InvalidOperationException("Bu işlem tanınan bir oyun süreci değil.");
+                process.PriorityClass = ProcessPriorityClass.Normal;
+            }
+        }
+    }
+
+    public sealed class GpuDiagnosticsService
+    {
+        public List<string> GetAdapters()
+        {
+            var result = new List<string>();
+            try
+            {
+                using (var query = new ManagementObjectSearcher("SELECT Name, DriverVersion, DriverDate, AdapterRAM, VideoProcessor, CurrentHorizontalResolution, CurrentVerticalResolution, CurrentRefreshRate FROM Win32_VideoController"))
+                {
+                    foreach (ManagementObject item in query.Get())
+                    {
+                        result.Add("GPU: " + Convert.ToString(item["Name"]));
+                        result.Add("Sürücü sürümü: " + (item["DriverVersion"] ?? "Bilinmiyor"));
+                        result.Add("Sürücü tarihi: " + (item["DriverDate"] ?? "Bilinmiyor"));
+                        try { result.Add("Raporlanan bağdaştırıcı belleği: " + (Convert.ToDouble(item["AdapterRAM"]) / 1073741824d).ToString("0.0") + " GB"); } catch { result.Add("Bağdaştırıcı belleği: Sürücü tarafından raporlanmadı"); }
+                        result.Add("Video işlemcisi: " + (item["VideoProcessor"] ?? "Bilinmiyor"));
+                        result.Add("Çözünürlük: " + (item["CurrentHorizontalResolution"] ?? "?") + " × " + (item["CurrentVerticalResolution"] ?? "?"));
+                        result.Add("Yenileme hızı: " + (item["CurrentRefreshRate"] ?? "Bilinmiyor") + " Hz");
+                        result.Add("----------------------------------------");
+                    }
+                }
+            }
+            catch (Exception ex) { result.Add("GPU bilgisi okunamadı: " + ex.Message); }
+            if (result.Count == 0) result.Add("GPU bağdaştırıcısı bilgisi bulunamadı.");
+            return result;
+        }
+    }
+
     public sealed class AppLogService
     {
         private readonly string _path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NEXORA", "Logs", "nexora.log");
