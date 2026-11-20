@@ -29,6 +29,7 @@ namespace NEXORA.App
         private readonly PackageManagerService _packageManager = new PackageManagerService();
         private readonly WindowsRepairService _repairService = new WindowsRepairService();
         private readonly PowerPlanService _powerPlans = new PowerPlanService();
+        private readonly ReversibleTweakService _tweaks = new ReversibleTweakService();
         private readonly DispatcherTimer _refreshTimer = new DispatcherTimer();
         private readonly List<UIElement> _dashboardElements = new List<UIElement>();
         private bool _refreshInProgress;
@@ -78,7 +79,7 @@ namespace NEXORA.App
             _currentPageKey = key;
             var titles = new Dictionary<string, string>
             {
-                {"dashboard","Genel Bakış"},{"boost","Quick Boost"},{"gaming","Gaming Center"},{"apps","Uygulama Yöneticisi"},{"tweaks","Windows Tweaks"},{"repair","Windows Onarım"},{"features","Windows Özellikleri"},{"power","Güç Planları"},{"updates","Windows Update"},{"config","Sistem Yapılandırması"},
+                {"dashboard","Genel Bakış"},{"boost","Quick Boost"},{"gaming","Gaming Center"},{"apps","Uygulama Yöneticisi"},{"tweaks","Windows Tweaks"},{"repair","Windows Onarım"},{"features","Windows Özellikleri"},{"power","Güç Planları"},{"updates","Windows Update"},{"config","Sistem Yapılandırması"},{"debloat","Debloat Manager"},
                 {"hardware","Donanım İzleme"},{"processes","İşlem Yöneticisi"},
                 {"startup","Başlangıç Uygulamaları"},{"services","Windows Hizmetleri"},{"storage","Depolama Temizliği"},{"network","Ağ Merkezi"},{"gpu","GPU Merkezi"},{"benchmark","Performans Testi"},{"logs","Sistem Günlükleri"},{"restore","Geri Yükleme"},{"windows","Windows Araçları"},{"settings","Ayarlar"}
             };
@@ -114,6 +115,7 @@ namespace NEXORA.App
             else if (key == "power") BuildPowerPage();
             else if (key == "updates") BuildUpdatesPage();
             else if (key == "config") BuildConfigPage();
+            else if (key == "debloat") BuildDebloatPage();
             else BuildComingSoonPage(key, titles.ContainsKey(key) ? titles[key] : "Modül");
         }
 
@@ -210,25 +212,39 @@ namespace NEXORA.App
             AddActionButton("WinGet kaynaklarını görüntüle", () => Launch("cmd.exe", "/k winget source list"));
         }
 
+
         private void BuildTweaksPage()
         {
-            AddInfoCard("Windows Tweaks • Ayar merkezi", "WinUtil yaklaşımındaki gibi Windows ayarlarını kategorilere ayırıyoruz. Bu ilk merkezde her işlem Windows'un kendi ayar ekranını açar; gizli kayıt defteri değişikliği veya güvenlik kapatma yapılmaz.");
-            AddInfoCard("Oyun ve performans", "Oyun Modu, grafik tercihleri, görsel efektler ve güç planı ayarları.");
+            AddInfoCard("Windows Tweaks • Geri alınabilir ayarlar", "Bu sayfadaki ilk tweak oyun yakalama ayarlarını yönetir. İlk değişiklikten önce mevcut kayıt defteri değerleri yedeklenir. Geri yükleme yedeği NEXORA'nın yerel uygulama verilerinde tutulur.");
+            try { AddInfoCard("Mevcut oyun yakalama değerleri", _tweaks.GetStatus()); }
+            catch (Exception ex) { AddInfoCard("Ayarlar okunamadı", ex.Message); }
+            AddActionButton("Oyun yakalama / Game DVR kapat", () =>
+            {
+                if (MessageBox.Show("Windows Game DVR kayıt anahtarları kapatılacak. Xbox Game Bar kayıt özelliği etkilenebilir. Önceki değerler yedeklenecek. Devam?", "Tweak uygula", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                try { _tweaks.DisableGameCapture(); _appLog.Write("INFO", "Applied tweak: Disable Game DVR"); MessageBox.Show("Ayar uygulandı. Gerekirse oturumu kapatıp aç."); RefreshCurrentPage(); }
+                catch (Exception ex) { MessageBox.Show("Tweak uygulanamadı: " + ex.Message); }
+            });
+            AddActionButton("Oyun yakalama / Game DVR aç", () =>
+            {
+                if (MessageBox.Show("Game DVR kayıt anahtarları etkinleştirilecek. Devam?", "Tweak uygula", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                try { _tweaks.EnableGameCapture(); _appLog.Write("INFO", "Applied tweak: Enable Game DVR"); MessageBox.Show("Ayar uygulandı."); RefreshCurrentPage(); }
+                catch (Exception ex) { MessageBox.Show("Tweak uygulanamadı: " + ex.Message); }
+            });
+            AddActionButton("Önceki tweak ayarlarını geri yükle", () =>
+            {
+                if (!_tweaks.HasBackup) { MessageBox.Show("Geri yüklenecek yedek bulunamadı."); return; }
+                if (MessageBox.Show("NEXORA'nın ilk değişiklik öncesi aldığı kayıt defteri yedeği geri yüklenecek. Devam?", "Geri yükle", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                try { _tweaks.RestoreBackup(); _appLog.Write("INFO", "Restored tweak backup"); MessageBox.Show("Önceki değerler geri yüklendi."); RefreshCurrentPage(); }
+                catch (Exception ex) { MessageBox.Show("Geri yükleme başarısız: " + ex.Message); }
+            });
+            AddInfoCard("Diğer Windows ayarları", "Aşağıdaki araçlar değişiklik yapmadan ilgili Windows ayar ekranlarını açar.");
             AddActionButton("Oyun Modu", () => Launch("ms-settings:gaming-gamemode"));
             AddActionButton("Grafik performansı tercihleri", () => Launch("ms-settings:display-advancedgraphics"));
             AddActionButton("Görsel efektler / performans seçenekleri", () => Launch("SystemPropertiesPerformance.exe"));
             AddActionButton("Güç planları", () => Launch("powercfg.cpl"));
             AddActionButton("Başlangıç uygulamalarını yönet", () => Launch("ms-settings:startupapps"));
-            AddInfoCard("Gizlilik ve arka plan", "Gizlilik, izinler ve arka plan uygulamalarını Windows ayarlarından yönet.");
-            AddActionButton("Gizlilik ana sayfası", () => Launch("ms-settings:privacy"));
-            AddActionButton("Arka plan uygulamaları / izinleri", () => Launch("ms-settings:privacy-backgroundapps"));
-            AddActionButton("Tanılama ve geri bildirim", () => Launch("ms-settings:privacy-feedback"));
-            AddActionButton("Reklam kimliği ve öneriler", () => Launch("ms-settings:privacy-general"));
-            AddInfoCard("Windows arayüzü", "Kişiselleştirme, görev çubuğu ve bildirimler.");
+            AddActionButton("Gizlilik ayarları", () => Launch("ms-settings:privacy"));
             AddActionButton("Kişiselleştirme", () => Launch("ms-settings:personalization"));
-            AddActionButton("Görev çubuğu", () => Launch("ms-settings:taskbar"));
-            AddActionButton("Bildirimler", () => Launch("ms-settings:notifications"));
-            AddInfoCard("Geri alma prensibi", "İleride eklenecek gerçek tweak anahtarları için NEXORA önce mevcut değeri yedekleyecek, değişiklik kaydı tutacak ve geri yükleme sunacak. Bu ekrandaki kısayollar Windows ayarlarını doğrudan değiştirmez.");
         }
 
         private void BuildRepairPage()
@@ -307,6 +323,46 @@ namespace NEXORA.App
             AddActionButton("Erişilebilirlik", () => Launch("ms-settings:easeofaccess"));
             AddActionButton("Depolama", () => Launch("ms-settings:storagesense"));
             AddActionButton("Kurtarma seçenekleri", () => Launch("ms-settings:recovery"));
+        }
+
+
+        private void BuildDebloatPage()
+        {
+            AddInfoCard("Debloat Manager • Uygulama kaldırma", "WinGet kataloğundan seçtiğin masaüstü uygulamalarını kaldırır. Windows sistem bileşenleri, Defender ve kritik uygulamalar bu listede bulunmaz. Kaldırma işlemi geri alınamayabilir.");
+            if (!_packageManager.IsWingetAvailable())
+            {
+                AddInfoCard("WinGet gerekli", "Debloat işlemleri için Microsoft App Installer / WinGet gerekir.");
+                AddActionButton("App Installer'ı aç", () => Launch("ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1"));
+                return;
+            }
+            var candidates = new List<PackageEntry>
+            {
+                new PackageEntry{Name="Xbox Game Bar",Id="Microsoft.XboxGamingOverlay",Category="Oyun yardımcı aracı"},
+                new PackageEntry{Name="Microsoft Teams (kişisel)",Id="Microsoft.Teams",Category="İletişim"},
+                new PackageEntry{Name="Microsoft Clipchamp",Id="Clipchamp.Clipchamp",Category="Video"},
+                new PackageEntry{Name="Spotify",Id="Spotify.Spotify",Category="Medya"},
+                new PackageEntry{Name="Discord",Id="Discord.Discord",Category="İletişim"},
+                new PackageEntry{Name="Microsoft OneDrive",Id="Microsoft.OneDrive",Category="Bulut"},
+                new PackageEntry{Name="Microsoft To Do",Id="9NBLGGH5R558",Category="Üretkenlik"}
+            };
+            var list = new ListBox { Height = 300, SelectionMode = SelectionMode.Extended, Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0) };
+            foreach (var app in candidates) list.Items.Add(new ListBoxItem { Content = app.Name + "  •  " + app.Category + "  |  " + app.Id, Tag = app, Padding = new Thickness(8) });
+            PageContent.Children.Add(list);
+            AddActionButton("Seçili uygulamaları kaldır", async () =>
+            {
+                var selected = list.SelectedItems.Cast<ListBoxItem>().Select(i => i.Tag as PackageEntry).Where(p => p != null).ToList();
+                if (selected.Count == 0) { MessageBox.Show("Önce kaldırılacak uygulamaları seç."); return; }
+                if (MessageBox.Show(selected.Count + " uygulama WinGet ile kaldırılmayı deneyecek. Devam etmeden önce uygulama verilerini yedekle. Devam?", "Debloat onayı", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                foreach (var app in selected)
+                {
+                    try { PageSubtitle.Text = "Kaldırılıyor: " + app.Name; var output = await _packageManager.UninstallAsync(app.Id); _appLog.Write("INFO", "WinGet uninstall " + app.Id + "\n" + output); }
+                    catch (Exception ex) { _appLog.Write("ERROR", "Uninstall " + app.Id + ": " + ex.Message); MessageBox.Show(app.Name + " kaldırılamadı: " + ex.Message); }
+                }
+                PageSubtitle.Text = "Debloat işlemleri tamamlandı.";
+                MessageBox.Show("Kaldırma denemeleri tamamlandı. Sonuçları Sistem Günlükleri bölümünden kontrol et.");
+            });
+            AddActionButton("Yüklü uygulamalar sayfasını aç", () => Launch("ms-settings:appsfeatures"));
+            AddInfoCard("Güvenli kaldırma ilkesi", "Windows bileşenleri, Store altyapısı, WebView, .NET, sürücüler ve güvenlik yazılımları otomatik kaldırılmaz. Listede olmayan uygulamaları Windows'un kendi kaldırma ekranından yönet.");
         }
 
         private void BuildProcessesPage()
