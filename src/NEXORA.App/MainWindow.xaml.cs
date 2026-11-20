@@ -14,6 +14,7 @@ namespace NEXORA.App
     public partial class MainWindow : Window
     {
         private readonly SystemInfoService _systemInfo = new SystemInfoService();
+        private readonly UpdateService _updateService = new UpdateService();
         private readonly DispatcherTimer _refreshTimer = new DispatcherTimer();
         private readonly List<UIElement> _dashboardElements = new List<UIElement>();
         private bool _refreshInProgress;
@@ -24,7 +25,7 @@ namespace NEXORA.App
             foreach (UIElement element in PageContent.Children)
                 _dashboardElements.Add(element);
 
-            Loaded += async (s, e) => await RefreshSystemInfoAsync();
+            Loaded += async (s, e) => { await RefreshSystemInfoAsync(); await CheckForUpdatesAsync(false); };
             _refreshTimer.Interval = TimeSpan.FromSeconds(5);
             _refreshTimer.Tick += async (s, e) => await RefreshSystemInfoAsync();
             _refreshTimer.Start();
@@ -133,7 +134,35 @@ namespace NEXORA.App
             AddActionButton("Yenileme: 3 saniye", () => SetRefreshInterval(3));
             AddActionButton("Yenileme: 5 saniye (varsayılan)", () => SetRefreshInterval(5));
             AddActionButton("Yenileme: 10 saniye", () => SetRefreshInterval(10));
+            AddInfoCard("Uygulama güncellemeleri", "NEXORA yeni sürümleri GitHub üzerinden kontrol eder. Güncelleme bulunduğunda paketi indirir, uygulamayı kapatıp dosyaları yeniler ve yeni sürümü yeniden başlatır.");
+            AddActionButton("Güncellemeleri kontrol et", async () => await CheckForUpdatesAsync(true));
             AddInfoCard("Güvenlik", "NEXORA başlangıçta yönetici izni istemez. Yönetici yetkisi gerektiren işlemler ilgili özellik tamamlandığında yalnızca gerektiğinde istenecek.");
+        }
+
+
+        private async Task CheckForUpdatesAsync(bool userInitiated)
+        {
+            try
+            {
+                var update = await _updateService.GetAvailableUpdateAsync();
+                if (update == null)
+                {
+                    if (userInitiated)
+                        MessageBox.Show("Şu anda en güncel sürümü kullanıyorsun.\\nSürüm: " + _updateService.CurrentVersion, "NEXORA Güncelleme", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var choice = MessageBox.Show("Yeni NEXORA sürümü bulundu: " + update.Version + "\\nMevcut sürüm: " + _updateService.CurrentVersion + "\\n\\nGüncelleme şimdi indirilip otomatik olarak kurulsun mu?", "NEXORA Güncelleme", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                if (choice != MessageBoxResult.Yes) return;
+
+                await _updateService.DownloadAndApplyAsync(update);
+                Application.Current.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                if (userInitiated)
+                    MessageBox.Show("Güncelleme tamamlanamadı.\\n\\n" + ex.Message, "NEXORA Güncelleme", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private void SetRefreshInterval(int seconds)
