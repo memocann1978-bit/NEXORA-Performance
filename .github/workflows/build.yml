@@ -8,16 +8,44 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
+      - name: Read application version
+        id: version
+        shell: pwsh
+        run: |
+          $assembly = Get-Content "src/NEXORA.App/Properties/AssemblyInfo.cs" -Raw
+          if ($assembly -notmatch 'AssemblyVersion\("([^"]+)"\)') { throw "AssemblyVersion not found" }
+          "version=$($Matches[1])" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
       - name: Build solution
         run: msbuild NEXORA.sln /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
-      - name: Upload application
+      - name: Package application
+        shell: pwsh
+        run: Compress-Archive -Path "src/NEXORA.App/bin/Release/*" -DestinationPath "NEXORA-Performance.zip" -Force
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NEXORA-Performance-preview
-          path: src/NEXORA.App/bin/Release/
+          name: NEXORA-Performance-v${{ steps.version.outputs.version }}
+          path: NEXORA-Performance.zip
           if-no-files-found: error
+      - name: Publish update release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: continuous
+          name: NEXORA Performance v${{ steps.version.outputs.version }}
+          body: |
+            NEXORA_VERSION=${{ steps.version.outputs.version }}
+
+            Automatic update package for NEXORA Performance.
+          files: NEXORA-Performance.zip
+          overwrite_files: true
+          prerelease: true
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
