@@ -12,6 +12,7 @@
         <Button Content="⚙   Windows Tweaks" Tag="tweaks" Click="Navigate_Click" Margin="0,2"/>
         <Button Content="🛠   Windows Onarım" Tag="repair" Click="Navigate_Click" Margin="0,2"/>
         <Button Content="▣   Windows Özellikleri" Tag="features" Click="Navigate_Click" Margin="0,2"/>
+        <Button Content="▧   Debloat Manager" Tag="debloat" Click="Navigate_Click" Margin="0,2"/>
         <TextBlock Text="SYSTEM CONFIG" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold" Margin="8,22,0,10"/>
         <Button Content="▤   Güç Planları" Tag="power" Click="Navigate_Click" Margin="0,2"/>
         <Button Content="↻   Windows Update" Tag="updates" Click="Navigate_Click" Margin="0,2"/>
