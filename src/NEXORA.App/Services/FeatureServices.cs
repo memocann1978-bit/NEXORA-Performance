@@ -289,6 +289,47 @@ namespace NEXORA.App.Services
         }
     }
 
+
+    public sealed class PowerPlanService
+    {
+        private static readonly Dictionary<string, string> Plans = new Dictionary<string, string>
+        {
+            { "Balanced", "381b4222-f694-41f0-9685-ff5bb260df2e" },
+            { "High performance", "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c" },
+            { "Power saver", "a1841308-3541-4fab-bc81-f71556f20b4a" }
+        };
+
+        public string GetPlans()
+        {
+            return RunPowerCfg("/list");
+        }
+
+        public string GetActivePlan()
+        {
+            return RunPowerCfg("/getactivescheme");
+        }
+
+        public string Activate(string name)
+        {
+            string id;
+            if (!Plans.TryGetValue(name, out id)) throw new InvalidOperationException("Desteklenmeyen güç planı.");
+            return RunPowerCfg("/setactive " + id);
+        }
+
+        private string RunPowerCfg(string args)
+        {
+            var info = new ProcessStartInfo { FileName = "powercfg.exe", Arguments = args, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            using (var process = Process.Start(info))
+            {
+                string output = process.StandardOutput.ReadToEnd();
+                string error = process.StandardError.ReadToEnd();
+                process.WaitForExit();
+                if (process.ExitCode != 0) throw new InvalidOperationException(string.IsNullOrWhiteSpace(error) ? output : error);
+                return output;
+            }
+        }
+    }
+
     public sealed class WindowsRepairService
     {
         public async System.Threading.Tasks.Task<string> RunElevatedAsync(string executable, string arguments)
