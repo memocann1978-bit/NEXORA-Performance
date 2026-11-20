@@ -19,9 +19,13 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $assembly = Get-Content "src/NEXORA.App/Properties/AssemblyInfo.cs" -Raw
-          if ($assembly -notmatch 'AssemblyVersion\("([^"]+)"\)') { throw "AssemblyVersion not found" }
-          "version=$($Matches[1])" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          $version = "0.1.${{ github.run_number }}.0"
+          $path = "src/NEXORA.App/Properties/AssemblyInfo.cs"
+          $assembly = Get-Content $path -Raw
+          $assembly = $assembly -replace 'AssemblyVersion\("[^"]+"\)', ('AssemblyVersion("' + $version + '")')
+          $assembly = $assembly -replace 'AssemblyFileVersion\("[^"]+"\)', ('AssemblyFileVersion("' + $version + '")')
+          Set-Content -Path $path -Value $assembly -NoNewline
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
       - name: Build solution
         run: msbuild NEXORA.sln /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
       - name: Package application
