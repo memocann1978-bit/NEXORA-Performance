@@ -28,6 +28,7 @@ namespace NEXORA.App
         private readonly AppLogService _appLog = new AppLogService();
         private readonly PackageManagerService _packageManager = new PackageManagerService();
         private readonly WindowsRepairService _repairService = new WindowsRepairService();
+        private readonly PowerPlanService _powerPlans = new PowerPlanService();
         private readonly DispatcherTimer _refreshTimer = new DispatcherTimer();
         private readonly List<UIElement> _dashboardElements = new List<UIElement>();
         private bool _refreshInProgress;
@@ -77,7 +78,7 @@ namespace NEXORA.App
             _currentPageKey = key;
             var titles = new Dictionary<string, string>
             {
-                {"dashboard","Genel Bakış"},{"boost","Quick Boost"},{"gaming","Gaming Center"},{"apps","Uygulama Yöneticisi"},{"tweaks","Windows Tweaks"},{"repair","Windows Onarım"},{"features","Windows Özellikleri"},
+                {"dashboard","Genel Bakış"},{"boost","Quick Boost"},{"gaming","Gaming Center"},{"apps","Uygulama Yöneticisi"},{"tweaks","Windows Tweaks"},{"repair","Windows Onarım"},{"features","Windows Özellikleri"},{"power","Güç Planları"},{"updates","Windows Update"},{"config","Sistem Yapılandırması"},
                 {"hardware","Donanım İzleme"},{"processes","İşlem Yöneticisi"},
                 {"startup","Başlangıç Uygulamaları"},{"services","Windows Hizmetleri"},{"storage","Depolama Temizliği"},{"network","Ağ Merkezi"},{"gpu","GPU Merkezi"},{"benchmark","Performans Testi"},{"logs","Sistem Günlükleri"},{"restore","Geri Yükleme"},{"windows","Windows Araçları"},{"settings","Ayarlar"}
             };
@@ -110,6 +111,9 @@ namespace NEXORA.App
             else if (key == "tweaks") BuildTweaksPage();
             else if (key == "repair") BuildRepairPage();
             else if (key == "features") BuildFeaturesPage();
+            else if (key == "power") BuildPowerPage();
+            else if (key == "updates") BuildUpdatesPage();
+            else if (key == "config") BuildConfigPage();
             else BuildComingSoonPage(key, titles.ContainsKey(key) ? titles[key] : "Modül");
         }
 
@@ -251,6 +255,58 @@ namespace NEXORA.App
             AddActionButton("Geliştirici ayarları", () => Launch("ms-settings:developers"));
             AddActionButton("Windows Güvenliği", () => Launch("windowsdefender:"));
             AddInfoCard("Not", "NEXORA Windows Defender, güvenlik duvarı veya Windows Update korumalarını kapatmaz. İleri seviye özellik değişikliklerinde Windows'un onay ekranı kullanılır.");
+        }
+
+
+        private void BuildPowerPage()
+        {
+            AddInfoCard("Güç Planı Yöneticisi", "Windows güç planlarını görüntüle ve değiştir. Yüksek performans planı daha fazla güç tüketebilir ve her bilgisayarda aynı sonucu vermez.");
+            try
+            {
+                AddInfoCard("Etkin güç planı", _powerPlans.GetActivePlan());
+                AddInfoCard("Mevcut güç planları", _powerPlans.GetPlans());
+            }
+            catch (Exception ex) { AddInfoCard("Güç planları okunamadı", ex.Message); }
+            foreach (string plan in new[] { "Balanced", "High performance", "Power saver" })
+            {
+                string selected = plan;
+                AddActionButton(selected + " planını etkinleştir", () =>
+                {
+                    string warning = selected == "High performance" ? "Bu plan güç tüketimini ve sıcaklığı artırabilir. Devam?" : selected == "Power saver" ? "Bu plan performansı sınırlayabilir. Devam?" : "Dengeli güç planı etkinleştirilsin mi?";
+                    if (MessageBox.Show(warning, "Güç planı", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                    try { string result = _powerPlans.Activate(selected); _appLog.Write("INFO", "Power plan activated: " + selected + "\n" + result); MessageBox.Show(result, "NEXORA"); RefreshCurrentPage(); }
+                    catch (Exception ex) { MessageBox.Show(ex.Message, "Güç planı", MessageBoxButton.OK, MessageBoxImage.Warning); }
+                });
+            }
+            AddActionButton("Gelişmiş güç seçenekleri", () => Launch("powercfg.cpl"));
+        }
+
+        private void BuildUpdatesPage()
+        {
+            AddInfoCard("Windows Update Merkezi", "Windows güncellemelerini Windows'un resmi arayüzünden yönet. NEXORA güncelleme servislerini kapatmaz veya güncellemeleri zorla engellemez.");
+            AddActionButton("Güncellemeleri denetle", () => Launch("ms-settings:windowsupdate"));
+            AddActionButton("Güncelleme geçmişi", () => Launch("ms-settings:windowsupdate-history"));
+            AddActionButton("Gelişmiş güncelleme seçenekleri", () => Launch("ms-settings:windowsupdate-options"));
+            AddActionButton("İsteğe bağlı güncellemeler / sürücüler", () => Launch("ms-settings:windowsupdate-optionalupdates"));
+            AddActionButton("Etkin saatler", () => Launch("ms-settings:windowsupdate-activehours"));
+            AddInfoCard("Sürücü güvenliği", "Sürücüleri yalnızca üretici veya Windows Update kaynaklarından yükle. NEXORA şu anda sürücü paketi indirmez ve sürücüleri otomatik değiştirmez.");
+        }
+
+        private void BuildConfigPage()
+        {
+            AddInfoCard("Sistem Yapılandırması", "Windows ayarlarını kategori kategori aç. Değişikliklerin uygulanması Windows tarafından yapılır.");
+            AddActionButton("Ekran ve çözünürlük", () => Launch("ms-settings:display"));
+            AddActionButton("Ses ayarları", () => Launch("ms-settings:sound"));
+            AddActionButton("Bluetooth ve cihazlar", () => Launch("ms-settings:bluetooth"));
+            AddActionButton("Ağ ve internet", () => Launch("ms-settings:network"));
+            AddActionButton("Varsayılan uygulamalar", () => Launch("ms-settings:defaultapps"));
+            AddActionButton("Yüklü uygulamalar", () => Launch("ms-settings:appsfeatures"));
+            AddActionButton("Kullanıcı hesapları", () => Launch("ms-settings:yourinfo"));
+            AddActionButton("Tarih ve saat", () => Launch("ms-settings:dateandtime"));
+            AddActionButton("Dil ve bölge", () => Launch("ms-settings:regionlanguage"));
+            AddActionButton("Erişilebilirlik", () => Launch("ms-settings:easeofaccess"));
+            AddActionButton("Depolama", () => Launch("ms-settings:storagesense"));
+            AddActionButton("Kurtarma seçenekleri", () => Launch("ms-settings:recovery"));
         }
 
         private void BuildProcessesPage()
