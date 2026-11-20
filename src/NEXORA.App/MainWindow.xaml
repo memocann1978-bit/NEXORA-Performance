@@ -7,6 +7,11 @@
         <Button Content="▦   Genel Bakış" Tag="dashboard" Click="Navigate_Click" Background="#29202A" Margin="0,2"/>
         <Button Content="⚡   Quick Boost" Tag="boost" Click="Navigate_Click" Margin="0,2"/>
         <Button Content="🎮   Gaming Center" Tag="gaming" Click="Navigate_Click" Margin="0,2"/>
+        <TextBlock Text="WINDOWS CONTROL" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold" Margin="8,22,0,10"/>
+        <Button Content="▦   Uygulama Yöneticisi" Tag="apps" Click="Navigate_Click" Margin="0,2"/>
+        <Button Content="⚙   Windows Tweaks" Tag="tweaks" Click="Navigate_Click" Margin="0,2"/>
+        <Button Content="🛠   Windows Onarım" Tag="repair" Click="Navigate_Click" Margin="0,2"/>
+        <Button Content="▣   Windows Özellikleri" Tag="features" Click="Navigate_Click" Margin="0,2"/>
         <TextBlock Text="MONITORING" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold" Margin="8,22,0,10"/>
         <Button Content="◉   Donanım İzleme" Tag="hardware" Click="Navigate_Click" Margin="0,2"/>
         <Button Content="▤   İşlem Yöneticisi" Tag="processes" Click="Navigate_Click" Margin="0,2"/>
