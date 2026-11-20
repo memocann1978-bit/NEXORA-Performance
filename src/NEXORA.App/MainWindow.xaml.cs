@@ -583,6 +583,35 @@ namespace NEXORA.App
             AddInfoCard("Sensör doğruluğu", "Bu sürüm GPU sürücüsü ve bağdaştırıcı bilgilerini WMI üzerinden okur. GPU sıcaklığı, fan devri ve gerçek zamanlı VRAM kullanımı her sürücü tarafından sunulmadığı için henüz desteklenmiyor; sahte değer gösterilmez.");
             AddActionButton("Aygıt Yöneticisi • Görüntü bağdaştırıcıları", () => Launch("devmgmt.msc"));
             AddActionButton("Windows gelişmiş ekran ayarları", () => Launch("ms-settings:display-advanced"));
+            AddActionButton("NVIDIA Denetim Masası", () => Launch("control.exe", "/name NVIDIA.ControlPanel"));
+            AddActionButton("DirectX tanı aracı", () => Launch("dxdiag.exe"));
+            AddActionButton("Windows Performans İzleyicisi", () => Launch("perfmon.exe"));
+            AddActionButton("Donanım raporunu panoya kopyala", () =>
+            {
+                try
+                {
+                    string report = _diagnostics.GetSummary() + Environment.NewLine + Environment.NewLine +
+                        "GPU ADAPTERS" + Environment.NewLine + string.Join(Environment.NewLine, _gpuDiagnostics.GetAdapters());
+                    Clipboard.SetText(report);
+                    MessageBox.Show("Donanım raporu panoya kopyalandı.", "NEXORA", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex) { MessageBox.Show("Rapor oluşturulamadı: " + ex.Message, "NEXORA", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            });
+            AddActionButton("Donanım raporunu TXT olarak dışa aktar", () =>
+            {
+                try
+                {
+                    string report = _diagnostics.GetSummary() + Environment.NewLine + Environment.NewLine +
+                        "GPU ADAPTERS" + Environment.NewLine + string.Join(Environment.NewLine, _gpuDiagnostics.GetAdapters());
+                    string folder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                    string path = Path.Combine(folder, "NEXORA-Hardware-Report-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".txt");
+                    File.WriteAllText(path, report);
+                    _appLog.Write("INFO", "Hardware report exported: " + path);
+                    MessageBox.Show("Donanım raporu kaydedildi:\n" + path, "NEXORA", MessageBoxButton.OK, MessageBoxImage.Information);
+                    Launch("explorer.exe", "/select,\"" + path + "\"");
+                }
+                catch (Exception ex) { MessageBox.Show("Rapor dışa aktarılamadı: " + ex.Message, "NEXORA", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            });
         }
 
         private void BuildWindowsToolsPage()
