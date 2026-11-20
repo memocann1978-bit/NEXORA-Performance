@@ -15,6 +15,14 @@ namespace NEXORA.App
     {
         private readonly SystemInfoService _systemInfo = new SystemInfoService();
         private readonly UpdateService _updateService = new UpdateService();
+        private readonly ProcessService _processService = new ProcessService();
+        private readonly StartupService _startupService = new StartupService();
+        private readonly WindowsServiceManager _windowsServices = new WindowsServiceManager();
+        private readonly StorageService _storageService = new StorageService();
+        private readonly NetworkService _networkService = new NetworkService();
+        private readonly GameDetectionService _gameDetection = new GameDetectionService();
+        private readonly SystemDiagnosticsService _diagnostics = new SystemDiagnosticsService();
+        private readonly AppLogService _appLog = new AppLogService();
         private readonly DispatcherTimer _refreshTimer = new DispatcherTimer();
         private readonly List<UIElement> _dashboardElements = new List<UIElement>();
         private bool _refreshInProgress;
@@ -64,7 +72,7 @@ namespace NEXORA.App
             {
                 {"dashboard","Genel Bakış"},{"boost","Quick Boost"},{"gaming","Gaming Center"},
                 {"hardware","Donanım İzleme"},{"processes","İşlem Yöneticisi"},
-                {"startup","Başlangıç Uygulamaları"},{"windows","Windows Araçları"},{"settings","Ayarlar"}
+                {"startup","Başlangıç Uygulamaları"},{"services","Windows Hizmetleri"},{"storage","Depolama Temizliği"},{"network","Ağ Merkezi"},{"gpu","GPU Merkezi"},{"benchmark","Performans Testi"},{"logs","Sistem Günlükleri"},{"restore","Geri Yükleme"},{"windows","Windows Araçları"},{"settings","Ayarlar"}
             };
 
             PageTitle.Text = titles.ContainsKey(key) ? titles[key] : "NEXORA";
@@ -80,7 +88,17 @@ namespace NEXORA.App
             PageSubtitle.Text = "NEXORA Performance • " + (key == "windows" ? "Yerleşik Windows araçları" : "Preview");
             if (key == "windows") BuildWindowsToolsPage();
             else if (key == "settings") BuildSettingsPage();
-            else if (key == "hardware") BuildHardwarePage();
+            else if (key == "hardware" || key == "gpu") BuildHardwarePage();
+            else if (key == "processes") BuildProcessesPage();
+            else if (key == "startup") BuildStartupPage();
+            else if (key == "services") BuildServicesPage();
+            else if (key == "storage") BuildStoragePage();
+            else if (key == "network") BuildNetworkPage();
+            else if (key == "benchmark") BuildBenchmarkPage();
+            else if (key == "logs") BuildLogsPage();
+            else if (key == "restore") BuildRestorePage();
+            else if (key == "boost") BuildQuickBoostPage();
+            else if (key == "gaming") BuildGamingPage();
             else BuildComingSoonPage(key, titles.ContainsKey(key) ? titles[key] : "Modül");
         }
 
@@ -106,6 +124,133 @@ namespace NEXORA.App
                     break;
             }
             AddInfoCard(title, message);
+        }
+
+
+        private void BuildProcessesPage()
+        {
+            AddInfoCard("Canlı işlem listesi", "Çalışan işlemler bellek kullanımına göre sıralanır. Windows için kritik işlemler NEXORA tarafından korunur.");
+            var list = new ListBox { Height = 330, Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0) };
+            foreach (var p in _processService.GetProcesses().Take(100))
+                list.Items.Add(new ListBoxItem { Content = p.Name + "  |  PID " + p.Id + "  |  RAM " + p.MemoryMb + " MB  |  " + p.WindowTitle, Tag = p.Id, Padding = new Thickness(8) });
+            PageContent.Children.Add(list);
+            AddActionButton("Seçili işlemi sonlandır", () =>
+            {
+                var selected = list.SelectedItem as ListBoxItem;
+                if (selected == null) { MessageBox.Show("Önce listeden bir işlem seç."); return; }
+                int id = Convert.ToInt32(selected.Tag);
+                if (MessageBox.Show("Seçilen işlem sonlandırılsın mı? Kaydedilmemiş çalışmalar kaybolabilir.", "İşlem sonlandırma", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                try { _processService.EndProcess(id); MessageBox.Show("İşlem sonlandırıldı."); BuildProcessesPage(); }
+                catch (Exception ex) { MessageBox.Show(ex.Message, "NEXORA", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            });
+            AddActionButton("Listeyi yenile", BuildProcessesPage);
+        }
+
+        private void BuildStartupPage()
+        {
+            AddInfoCard("Başlangıç uygulamaları", "Windows kullanıcı ve bilgisayar Run kayıtlarından okunan başlangıç girdileri. Bu ekranda şimdilik salt okunur liste sunulur; girdiler otomatik silinmez.");
+            var entries = _startupService.GetEntries();
+            if (entries.Count == 0) AddInfoCard("Kayıt bulunamadı", "Desteklenen başlangıç kayıt konumlarında uygulama bulunamadı veya erişim engellendi.");
+            foreach (var item in entries)
+                AddInfoCard(item.Name + " • " + item.Location, item.Command);
+            AddActionButton("Başlangıç Uygulamaları klasörünü aç", () => Launch("shell:startup"));
+            AddActionButton("Görev Yöneticisi başlangıç sekmesini aç", () => Launch("taskmgr.exe"));
+        }
+
+        private void BuildServicesPage()
+        {
+            AddInfoCard("Windows hizmetleri", "Hizmetler listelenir. Durdurma işlemi yalnızca kullanıcı onayıyla yapılır. Defender, güvenlik duvarı, Windows Update ve kritik Windows hizmetleri koruma listesindedir.");
+            var list = new ListBox { Height = 330, Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0) };
+            foreach (var s in _windowsServices.GetServices())
+                list.Items.Add(new ListBoxItem { Content = s.DisplayName + "  |  " + s.Status + "  |  " + s.Name, Tag = s.Name, Padding = new Thickness(7) });
+            PageContent.Children.Add(list);
+            AddActionButton("Seçili hizmeti durdur", () =>
+            {
+                var selected = list.SelectedItem as ListBoxItem;
+                if (selected == null) { MessageBox.Show("Önce bir hizmet seç."); return; }
+                string service = Convert.ToString(selected.Tag);
+                if (MessageBox.Show("“" + service + "” hizmeti durdurulsun mu? Bazı uygulamalar etkilenebilir.", "Hizmet yönetimi", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                try { _windowsServices.StopService(service); MessageBox.Show("Hizmet durduruldu."); BuildServicesPage(); }
+                catch (Exception ex) { MessageBox.Show(ex.Message, "Hizmet durdurulamadı", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            });
+            AddActionButton("Hizmet listesini yenile", BuildServicesPage);
+        }
+
+        private void BuildStoragePage()
+        {
+            long bytes = 0;
+            try { bytes = _storageService.GetTemporaryFileBytes(); } catch { }
+            AddInfoCard("Geçici dosyalar", "Kullanıcı TEMP klasörü: " + _storageService.TempPath + "\nYaklaşık taranan boyut: " + (bytes / 1048576d).ToString("0.0") + " MB\nKilitli veya kullanımda olan dosyalar atlanır.");
+            AddActionButton("Geçici dosyaları temizle", () =>
+            {
+                if (MessageBox.Show("Yalnızca Windows kullanıcı TEMP klasöründeki silinebilen dosyalar temizlenecek. Devam edilsin mi?", "Depolama temizliği", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                int count = _storageService.CleanTemporaryFiles();
+                _appLog.Write("INFO", "Temporary cleanup completed. Deleted files: " + count);
+                MessageBox.Show("Temizlenen dosya sayısı: " + count);
+                BuildStoragePage();
+            });
+            AddActionButton("Depolama ayarlarını aç", () => Launch("ms-settings:storagesense"));
+            AddActionButton("Disk Temizleme aracını aç", () => Launch("cleanmgr.exe"));
+        }
+
+        private void BuildNetworkPage()
+        {
+            AddInfoCard("Ağ araçları", "Bu araçlar bağlantı bilgilerini görüntüler. DNS önbelleği temizliği dışında ağ yapılandırması değiştirilmez.");
+            AddActionButton("IP yapılandırmasını görüntüle", () =>
+            {
+                try { MessageBox.Show(_networkService.GetIpConfiguration(), "IP yapılandırması", MessageBoxButton.OK, MessageBoxImage.Information); }
+                catch (Exception ex) { MessageBox.Show(ex.Message); }
+            });
+            AddActionButton("DNS önbelleğini temizle", () =>
+            {
+                if (MessageBox.Show("Windows DNS önbelleği temizlensin mi?", "Ağ aracı", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                try { _networkService.FlushDns(); _appLog.Write("INFO", "DNS cache flushed."); MessageBox.Show("DNS önbelleği temizlendi."); }
+                catch (Exception ex) { MessageBox.Show("İşlem başarısız: " + ex.Message); }
+            });
+            AddActionButton("Ağ ve İnternet ayarlarını aç", () => Launch("ms-settings:network-status"));
+            AddActionButton("Ağ bağlantılarını aç", () => Launch("ncpa.cpl"));
+        }
+
+        private void BuildGamingPage()
+        {
+            AddInfoCard("Oyun algılama", "NEXORA bilinen oyun süreçlerini tarar. Oyun algılama tek başına FPS artışı sağlamaz ve oyunlara müdahale etmez.");
+            var games = _gameDetection.GetRunningGames();
+            AddInfoCard("Çalışan oyunlar (" + games.Count + ")", games.Count == 0 ? "Bilinen oyunlardan çalışan bir süreç algılanmadı." : string.Join("\n", games));
+            AddActionButton("Oyunları yeniden tara", BuildGamingPage);
+            AddActionButton("Windows Oyun Modu ayarlarını aç", () => Launch("ms-settings:gaming-gamemode"));
+            AddActionButton("Xbox Game Bar ayarlarını aç", () => Launch("ms-settings:gaming-gamebar"));
+        }
+
+        private void BuildQuickBoostPage()
+        {
+            AddInfoCard("Quick Boost • Güvenli araçlar", "Bu ilk sürümde tek tuşla servis kapatma veya kayıt defteri değişikliği yapılmaz. Gerçek ve geri döndürülebilir araçlar sunulur.");
+            BuildStoragePage();
+            AddActionButton("Güç ve pil ayarlarını aç", () => Launch("ms-settings:powersleep"));
+            AddActionButton("Görsel efekt ayarlarını aç", () => Launch("SystemPropertiesPerformance.exe"));
+        }
+
+        private void BuildBenchmarkPage()
+        {
+            AddInfoCard("Sistem tanılama", "Donanım bilgilerini ve sistem yapılandırmasını toplar. Bu ekran henüz FPS ölçümü veya sentetik benchmark puanı üretmez.");
+            AddActionButton("Tanılama raporunu göster", () => MessageBox.Show(_diagnostics.GetSummary(), "NEXORA Sistem Raporu", MessageBoxButton.OK, MessageBoxImage.Information));
+            AddActionButton("Windows Performans İzleyicisi", () => Launch("perfmon.exe"));
+            AddActionButton("DirectX tanı aracı", () => Launch("dxdiag.exe"));
+        }
+
+        private void BuildLogsPage()
+        {
+            AddInfoCard("NEXORA günlükleri", "Uygulama içindeki araç işlemleri ve hatalar yerel olarak kaydedilir.\nDosya: " + _appLog.LogPath);
+            var box = new TextBox { Text = _appLog.ReadAll(), IsReadOnly = true, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Height = 300, Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0), Padding = new Thickness(12) };
+            PageContent.Children.Add(box);
+            AddActionButton("Günlükleri yenile", BuildLogsPage);
+            AddActionButton("Günlük klasörünü aç", () => Launch(Path.GetDirectoryName(_appLog.LogPath)));
+        }
+
+        private void BuildRestorePage()
+        {
+            AddInfoCard("Sistem geri yükleme", "Windows geri yükleme noktaları sistem değişikliklerini geri almayı kolaylaştırabilir. NEXORA henüz otomatik geri yükleme noktası oluşturmaz; Windows'un yerleşik koruma ekranını açar.");
+            AddActionButton("Sistem Koruması ayarlarını aç", () => Launch("SystemPropertiesProtection.exe"));
+            AddActionButton("Sistem geri yüklemeyi başlat", () => Launch("rstrui.exe"));
         }
 
         private void BuildHardwarePage()
