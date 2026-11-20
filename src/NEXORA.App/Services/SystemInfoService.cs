@@ -12,7 +12,23 @@ namespace NEXORA.App.Services
                 var result = new SystemSnapshot();
                 result.OperatingSystem = Environment.OSVersion.VersionString;
                 result.ComputerName = Environment.MachineName;
-                result.Uptime = TimeSpan.FromMilliseconds(Environment.TickCount64);
+                try
+                {
+                    using (var searcher = new ManagementObjectSearcher("SELECT LastBootUpTime FROM Win32_OperatingSystem"))
+                    using (var rows = searcher.Get())
+                    {
+                        foreach (ManagementObject item in rows)
+                        {
+                            var bootTime = ManagementDateTimeConverter.ToDateTime(Convert.ToString(item["LastBootUpTime"]));
+                            result.Uptime = DateTime.Now - bootTime;
+                            break;
+                        }
+                    }
+                }
+                catch
+                {
+                    result.Uptime = TimeSpan.FromMilliseconds(unchecked((uint)Environment.TickCount));
+                }
                 try
                 {
                     using (var searcher = new ManagementObjectSearcher("SELECT Name, LoadPercentage FROM Win32_Processor"))
