@@ -110,7 +110,7 @@ namespace NEXORA.App.Services
                 if (!File.Exists(Path.Combine(extractPath, Path.GetFileName(executable))))
                     throw new InvalidDataException("İndirilen pakette uygulama EXE dosyası bulunamadı.");
 
-                string scriptPath = Path.Combine(tempRoot, "apply-update.cmd");
+                string scriptPath = Path.Combine(Path.GetTempPath(), "NEXORA-apply-" + Guid.NewGuid().ToString("N") + ".cmd");
                 string script = "@echo off\r\n" +
                     "set \"APP_PID=" + Process.GetCurrentProcess().Id + "\"\r\n" +
                     ":waitforapp\r\n" +
