@@ -203,7 +203,7 @@ namespace NEXORA.App
                 if (selected == null) { MessageBox.Show("Önce bir hizmet seç."); return; }
                 string service = Convert.ToString(selected.Tag);
                 if (MessageBox.Show("“" + service + "” hizmeti durdurulsun mu? Bazı uygulamalar etkilenebilir.", "Hizmet yönetimi", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-                try { _windowsServices.StopService(service); MessageBox.Show("Hizmet durduruldu."); BuildServicesPage(); }
+                try { _windowsServices.StopService(service); MessageBox.Show("Hizmet durduruldu."); RefreshCurrentPage(); }
                 catch (Exception ex) { MessageBox.Show(ex.Message, "Hizmet durdurulamadı", MessageBoxButton.OK, MessageBoxImage.Warning); }
             });
             AddActionButton("Hizmet listesini yenile", RefreshCurrentPage);
@@ -361,6 +361,12 @@ namespace NEXORA.App
         {
             _refreshTimer.Interval = TimeSpan.FromSeconds(seconds);
             PageSubtitle.Text = "Sistem bilgileri " + seconds + " saniyede bir yenilenecek.";
+        }
+
+        private void Launch(string command, string arguments)
+        {
+            try { Process.Start(new ProcessStartInfo { FileName = command, Arguments = arguments, UseShellExecute = true }); }
+            catch (Exception ex) { MessageBox.Show("Araç açılamadı: " + ex.Message, "NEXORA Performance", MessageBoxButton.OK, MessageBoxImage.Warning); }
         }
 
         private void Launch(string command)
