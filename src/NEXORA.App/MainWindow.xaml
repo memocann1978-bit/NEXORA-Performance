@@ -11,6 +11,13 @@
         <Button Content="◉   Donanım İzleme" Tag="hardware" Click="Navigate_Click" Margin="0,2"/>
         <Button Content="▤   İşlem Yöneticisi" Tag="processes" Click="Navigate_Click" Margin="0,2"/>
         <Button Content="◷   Başlangıç Uygulamaları" Tag="startup" Click="Navigate_Click" Margin="0,2"/>
+        <Button Content="▣   Windows Hizmetleri" Tag="services" Click="Navigate_Click" Margin="0,2"/>
+        <Button Content="▤   Depolama Temizliği" Tag="storage" Click="Navigate_Click" Margin="0,2"/>
+        <Button Content="⌁   Ağ Merkezi" Tag="network" Click="Navigate_Click" Margin="0,2"/>
+        <Button Content="▦   GPU Merkezi" Tag="gpu" Click="Navigate_Click" Margin="0,2"/>
+        <Button Content="◉   Performans Testi" Tag="benchmark" Click="Navigate_Click" Margin="0,2"/>
+        <Button Content="≡   Sistem Günlükleri" Tag="logs" Click="Navigate_Click" Margin="0,2"/>
+        <Button Content="↻   Geri Yükleme" Tag="restore" Click="Navigate_Click" Margin="0,2"/>
         <TextBlock Text="TOOLS" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold" Margin="8,22,0,10"/>
         <Button Content="⌁   Windows Araçları" Tag="windows" Click="Navigate_Click" Margin="0,2"/>
         <Button Content="⚙   Ayarlar" Tag="settings" Click="Navigate_Click" Margin="0,2"/>
