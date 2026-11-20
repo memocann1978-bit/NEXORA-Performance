@@ -236,6 +236,75 @@ namespace NEXORA.App.Services
         }
     }
 
+
+    public sealed class PackageEntry
+    {
+        public string Name { get; set; }
+        public string Id { get; set; }
+        public string Category { get; set; }
+    }
+
+    public sealed class PackageManagerService
+    {
+        public bool IsWingetAvailable()
+        {
+            try
+            {
+                var info = new ProcessStartInfo { FileName = "winget.exe", Arguments = "--version", UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+                using (var process = Process.Start(info)) { process.WaitForExit(5000); return process.ExitCode == 0; }
+            }
+            catch { return false; }
+        }
+
+        public async System.Threading.Tasks.Task<string> InstallAsync(string packageId)
+        {
+            return await RunAsync("install --id " + Quote(packageId) + " --exact --silent --accept-package-agreements --accept-source-agreements");
+        }
+
+        public async System.Threading.Tasks.Task<string> UpgradeAllAsync()
+        {
+            return await RunAsync("upgrade --all --silent --accept-package-agreements --accept-source-agreements");
+        }
+
+        public async System.Threading.Tasks.Task<string> UpgradeAsync(string packageId)
+        {
+            return await RunAsync("upgrade --id " + Quote(packageId) + " --exact --silent --accept-package-agreements --accept-source-agreements");
+        }
+
+        private string Quote(string value) { return "\"" + value.Replace("\"", "") + "\""; }
+
+        private async System.Threading.Tasks.Task<string> RunAsync(string arguments)
+        {
+            return await System.Threading.Tasks.Task.Run(() =>
+            {
+                var info = new ProcessStartInfo { FileName = "winget.exe", Arguments = arguments, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+                using (var process = Process.Start(info))
+                {
+                    string output = process.StandardOutput.ReadToEnd();
+                    string error = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+                    return "Çıkış kodu: " + process.ExitCode + Environment.NewLine + output + (string.IsNullOrWhiteSpace(error) ? "" : Environment.NewLine + error);
+                }
+            });
+        }
+    }
+
+    public sealed class WindowsRepairService
+    {
+        public async System.Threading.Tasks.Task<string> RunElevatedAsync(string executable, string arguments)
+        {
+            return await System.Threading.Tasks.Task.Run(() =>
+            {
+                var info = new ProcessStartInfo { FileName = executable, Arguments = arguments, UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Normal };
+                using (var process = Process.Start(info))
+                {
+                    process.WaitForExit();
+                    return executable + " tamamlandı. Çıkış kodu: " + process.ExitCode;
+                }
+            });
+        }
+    }
+
     public sealed class AppLogService
     {
         private readonly string _path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NEXORA", "Logs", "nexora.log");
