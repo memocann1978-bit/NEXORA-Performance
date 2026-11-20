@@ -666,17 +666,30 @@ namespace NEXORA.App
 
         private void AddInfoCard(string title, string message)
         {
-            var panel = new Border
+            var accent = new Border
             {
-                Background = (Brush)FindResource("PanelBrush"),
-                CornerRadius = new CornerRadius(14),
-                Padding = new Thickness(22),
-                Margin = new Thickness(0, 0, 0, 14)
+                Width = 4,
+                CornerRadius = new CornerRadius(3),
+                Background = (Brush)FindResource("AccentGradient"),
+                Margin = new Thickness(0, 2, 15, 2)
             };
             var stack = new StackPanel();
-            stack.Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("TextBrush") });
-            stack.Children.Add(new TextBlock { Text = message, FontSize = 13, TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("MutedBrush"), Margin = new Thickness(0, 9, 0, 0) });
-            panel.Child = stack;
+            stack.Children.Add(new TextBlock { Text = title, FontSize = 17, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("TextBrush") });
+            stack.Children.Add(new TextBlock { Text = message, FontSize = 13, LineHeight = 20, TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("MutedBrush"), Margin = new Thickness(0, 9, 0, 0) });
+            var content = new DockPanel();
+            DockPanel.SetDock(accent, Dock.Left);
+            content.Children.Add(accent);
+            content.Children.Add(stack);
+            var panel = new Border
+            {
+                Background = (Brush)FindResource("PanelGradient"),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(58, 42, 77)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(15),
+                Padding = new Thickness(20),
+                Margin = new Thickness(0, 0, 0, 14),
+                Child = content
+            };
             PageContent.Children.Add(panel);
         }
 
@@ -684,12 +697,14 @@ namespace NEXORA.App
         {
             var button = new Button
             {
-                Content = label,
+                Content = "✦   " + label,
                 Background = (Brush)FindResource("PanelLightBrush"),
                 Foreground = (Brush)FindResource("TextBrush"),
-                Padding = new Thickness(16, 12, 16, 12),
-                Margin = new Thickness(0, 0, 0, 9),
-                HorizontalContentAlignment = HorizontalAlignment.Left
+                Padding = new Thickness(17, 13, 17, 13),
+                Margin = new Thickness(0, 0, 0, 10),
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                BorderBrush = new SolidColorBrush(Color.FromRgb(65, 47, 88)),
+                BorderThickness = new Thickness(1)
             };
             button.Click += (s, e) => action();
             PageContent.Children.Add(button);
