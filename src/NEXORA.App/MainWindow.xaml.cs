@@ -27,6 +27,7 @@ namespace NEXORA.App
         private readonly DispatcherTimer _refreshTimer = new DispatcherTimer();
         private readonly List<UIElement> _dashboardElements = new List<UIElement>();
         private bool _refreshInProgress;
+        private string _currentPageKey = "dashboard";
 
         public MainWindow()
         {
@@ -69,6 +70,7 @@ namespace NEXORA.App
             var button = sender as Button;
             if (button == null) return;
             var key = Convert.ToString(button.Tag);
+            _currentPageKey = key;
             var titles = new Dictionary<string, string>
             {
                 {"dashboard","Genel Bakış"},{"boost","Quick Boost"},{"gaming","Gaming Center"},
@@ -130,21 +132,51 @@ namespace NEXORA.App
 
         private void BuildProcessesPage()
         {
-            AddInfoCard("Canlı işlem listesi", "Çalışan işlemler bellek kullanımına göre sıralanır. Windows için kritik işlemler NEXORA tarafından korunur.");
-            var list = new ListBox { Height = 330, Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0) };
-            foreach (var p in _processService.GetProcesses().Take(100))
-                list.Items.Add(new ListBoxItem { Content = p.Name + "  |  PID " + p.Id + "  |  RAM " + p.MemoryMb + " MB  |  " + p.WindowTitle, Tag = p.Id, Padding = new Thickness(8) });
+            var entries = _processService.GetProcesses();
+            AddInfoCard("Canlı işlem yöneticisi", "İşlemleri ada veya PID'ye göre filtrele. Bellek kullanımı yüksekten düşüğe sıralanır. Kritik Windows işlemleri korunur.");
+            AddInfoCard("Toplam işlem: " + entries.Count, "Liste anlık görüntüdür; yenile düğmesiyle tekrar tarayabilirsin.");
+            var search = new TextBox { Height = 36, Padding = new Thickness(10), Margin = new Thickness(0, 0, 0, 10), Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0), ToolTip = "İşlem adı veya PID ara" };
+            PageContent.Children.Add(search);
+            var list = new ListBox { Height = 390, Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0) };
             PageContent.Children.Add(list);
+            Action populate = () =>
+            {
+                list.Items.Clear();
+                string term = search.Text.Trim();
+                foreach (var p in entries.Where(x => string.IsNullOrEmpty(term) || x.Name.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0 || x.Id.ToString().Contains(term)).Take(250))
+                    list.Items.Add(new ListBoxItem { Content = p.Name + "  |  PID " + p.Id + "  |  RAM " + p.MemoryMb + " MB" + (string.IsNullOrWhiteSpace(p.WindowTitle) ? "" : "  |  " + p.WindowTitle), Tag = p.Id, Padding = new Thickness(8) });
+            };
+            search.TextChanged += (s, e) => populate();
+            populate();
             AddActionButton("Seçili işlemi sonlandır", () =>
             {
                 var selected = list.SelectedItem as ListBoxItem;
                 if (selected == null) { MessageBox.Show("Önce listeden bir işlem seç."); return; }
                 int id = Convert.ToInt32(selected.Tag);
                 if (MessageBox.Show("Seçilen işlem sonlandırılsın mı? Kaydedilmemiş çalışmalar kaybolabilir.", "İşlem sonlandırma", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-                try { _processService.EndProcess(id); MessageBox.Show("İşlem sonlandırıldı."); BuildProcessesPage(); }
+                try { _processService.EndProcess(id); _appLog.Write("INFO", "Process terminated: PID " + id); RefreshCurrentPage(); }
                 catch (Exception ex) { MessageBox.Show(ex.Message, "NEXORA", MessageBoxButton.OK, MessageBoxImage.Warning); }
             });
-            AddActionButton("Listeyi yenile", BuildProcessesPage);
+            AddActionButton("Seçili işlemin dosya konumunu aç", () =>
+            {
+                var selected = list.SelectedItem as ListBoxItem;
+                if (selected == null) { MessageBox.Show("Önce bir işlem seç."); return; }
+                try { using (var p = Process.GetProcessById(Convert.ToInt32(selected.Tag))) { string path = p.MainModule.FileName; Launch("explorer.exe", "/select,\"" + path + "\""); } }
+                catch (Exception ex) { MessageBox.Show("Dosya konumu okunamadı: " + ex.Message); }
+            });
+            AddActionButton("Seçili PID'yi kopyala", () =>
+            {
+                var selected = list.SelectedItem as ListBoxItem;
+                if (selected == null) { MessageBox.Show("Önce bir işlem seç."); return; }
+                Clipboard.SetText(Convert.ToString(selected.Tag));
+            });
+            AddActionButton("Listeyi yenile", RefreshCurrentPage);
+        }
+
+        private void RefreshCurrentPage()
+        {
+            var button = new Button { Tag = _currentPageKey };
+            Navigate_Click(button, new RoutedEventArgs());
         }
 
         private void BuildStartupPage()
@@ -174,7 +206,7 @@ namespace NEXORA.App
                 try { _windowsServices.StopService(service); MessageBox.Show("Hizmet durduruldu."); BuildServicesPage(); }
                 catch (Exception ex) { MessageBox.Show(ex.Message, "Hizmet durdurulamadı", MessageBoxButton.OK, MessageBoxImage.Warning); }
             });
-            AddActionButton("Hizmet listesini yenile", BuildServicesPage);
+            AddActionButton("Hizmet listesini yenile", RefreshCurrentPage);
         }
 
         private void BuildStoragePage()
@@ -188,9 +220,11 @@ namespace NEXORA.App
                 int count = _storageService.CleanTemporaryFiles();
                 _appLog.Write("INFO", "Temporary cleanup completed. Deleted files: " + count);
                 MessageBox.Show("Temizlenen dosya sayısı: " + count);
-                BuildStoragePage();
+                RefreshCurrentPage();
             });
             AddActionButton("Depolama ayarlarını aç", () => Launch("ms-settings:storagesense"));
+            AddActionButton("Geri Dönüşüm Kutusu'nu aç", () => Launch("explorer.exe", "shell:RecycleBinFolder"));
+            AddActionButton("İndirilenler klasörünü aç", () => Launch("explorer.exe", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")));
             AddActionButton("Disk Temizleme aracını aç", () => Launch("cleanmgr.exe"));
         }
 
@@ -210,6 +244,12 @@ namespace NEXORA.App
             });
             AddActionButton("Ağ ve İnternet ayarlarını aç", () => Launch("ms-settings:network-status"));
             AddActionButton("Ağ bağlantılarını aç", () => Launch("ncpa.cpl"));
+            AddActionButton("Bağlantı testi (1.1.1.1)", () =>
+            {
+                try { var psi = new ProcessStartInfo { FileName = "ping.exe", Arguments = "-n 4 1.1.1.1", UseShellExecute = false, RedirectStandardOutput = true, CreateNoWindow = true }; using (var p = Process.Start(psi)) { string output = p.StandardOutput.ReadToEnd(); p.WaitForExit(10000); MessageBox.Show(output, "Bağlantı testi"); } }
+                catch (Exception ex) { MessageBox.Show(ex.Message); }
+            });
+            AddActionButton("Proxy ayarlarını aç", () => Launch("ms-settings:network-proxy"));
         }
 
         private void BuildGamingPage()
@@ -217,7 +257,7 @@ namespace NEXORA.App
             AddInfoCard("Oyun algılama", "NEXORA bilinen oyun süreçlerini tarar. Oyun algılama tek başına FPS artışı sağlamaz ve oyunlara müdahale etmez.");
             var games = _gameDetection.GetRunningGames();
             AddInfoCard("Çalışan oyunlar (" + games.Count + ")", games.Count == 0 ? "Bilinen oyunlardan çalışan bir süreç algılanmadı." : string.Join("\n", games));
-            AddActionButton("Oyunları yeniden tara", BuildGamingPage);
+            AddActionButton("Oyunları yeniden tara", RefreshCurrentPage);
             AddActionButton("Windows Oyun Modu ayarlarını aç", () => Launch("ms-settings:gaming-gamemode"));
             AddActionButton("Xbox Game Bar ayarlarını aç", () => Launch("ms-settings:gaming-gamebar"));
         }
@@ -225,7 +265,8 @@ namespace NEXORA.App
         private void BuildQuickBoostPage()
         {
             AddInfoCard("Quick Boost • Güvenli araçlar", "Bu ilk sürümde tek tuşla servis kapatma veya kayıt defteri değişikliği yapılmaz. Gerçek ve geri döndürülebilir araçlar sunulur.");
-            BuildStoragePage();
+            AddActionButton("Geçici dosyaları tara", () => MessageBox.Show("TEMP klasörü: " + _storageService.TempPath + "\nYaklaşık boyut: " + (_storageService.GetTemporaryFileBytes() / 1048576d).ToString("0.0") + " MB", "Quick Boost", MessageBoxButton.OK, MessageBoxImage.Information));
+            AddActionButton("Geçici dosyaları güvenli temizle", () => { if (MessageBox.Show("Yalnızca kullanıcı TEMP klasöründeki kullanılmayan dosyalar temizlenecek. Devam?", "Quick Boost", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) { int n = _storageService.CleanTemporaryFiles(); _appLog.Write("INFO", "Quick Boost TEMP cleanup: " + n); MessageBox.Show("Temizlenen dosya: " + n); RefreshCurrentPage(); } });
             AddActionButton("Güç ve pil ayarlarını aç", () => Launch("ms-settings:powersleep"));
             AddActionButton("Görsel efekt ayarlarını aç", () => Launch("SystemPropertiesPerformance.exe"));
         }
@@ -243,7 +284,7 @@ namespace NEXORA.App
             AddInfoCard("NEXORA günlükleri", "Uygulama içindeki araç işlemleri ve hatalar yerel olarak kaydedilir.\nDosya: " + _appLog.LogPath);
             var box = new TextBox { Text = _appLog.ReadAll(), IsReadOnly = true, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Height = 300, Background = (Brush)FindResource("PanelBrush"), Foreground = (Brush)FindResource("TextBrush"), BorderThickness = new Thickness(0), Padding = new Thickness(12) };
             PageContent.Children.Add(box);
-            AddActionButton("Günlükleri yenile", BuildLogsPage);
+            AddActionButton("Günlükleri yenile", RefreshCurrentPage);
             AddActionButton("Günlük klasörünü aç", () => Launch(Path.GetDirectoryName(_appLog.LogPath)));
         }
 
@@ -270,6 +311,11 @@ namespace NEXORA.App
             AddActionButton("Disk Temizleme", () => Launch("cleanmgr.exe"));
             AddActionButton("Hizmetler", () => Launch("services.msc"));
             AddActionButton("Olay Görüntüleyicisi", () => Launch("eventvwr.msc"));
+            AddActionButton("Sistem Yapılandırması", () => Launch("msconfig.exe"));
+            AddActionButton("Görev Zamanlayıcı", () => Launch("taskschd.msc"));
+            AddActionButton("Güç seçenekleri", () => Launch("powercfg.cpl"));
+            AddActionButton("Program kaldırma", () => Launch("appwiz.cpl"));
+            AddActionButton("Sistem bilgisi", () => Launch("msinfo32.exe"));
             AddActionButton("Windows Güvenliği", () => Launch("windowsdefender:"));
             AddActionButton("Windows Ayarları", () => Launch("ms-settings:"));
         }
