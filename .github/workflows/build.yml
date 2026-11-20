@@ -1,0 +1,23 @@
+name: Build NEXORA Performance
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+      - name: Build solution
+        run: msbuild NEXORA.sln /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
+      - name: Upload application
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEXORA-Performance-preview
+          path: src/NEXORA.App/bin/Release/
+          if-no-files-found: error
