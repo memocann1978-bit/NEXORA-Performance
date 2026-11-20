@@ -266,6 +266,12 @@ namespace NEXORA.App.Services
             return await RunAsync("upgrade --all --silent --accept-package-agreements --accept-source-agreements");
         }
 
+
+        public async System.Threading.Tasks.Task<string> UninstallAsync(string packageId)
+        {
+            return await RunAsync("uninstall --id " + Quote(packageId) + " --exact --silent --accept-source-agreements");
+        }
+
         public async System.Threading.Tasks.Task<string> UpgradeAsync(string packageId)
         {
             return await RunAsync("upgrade --id " + Quote(packageId) + " --exact --silent --accept-package-agreements --accept-source-agreements");
@@ -343,6 +349,87 @@ namespace NEXORA.App.Services
                     return executable + " tamamlandı. Çıkış kodu: " + process.ExitCode;
                 }
             });
+        }
+    }
+
+
+    public sealed class ReversibleTweakService
+    {
+        private readonly string _backupPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NEXORA", "Backups", "tweaks-backup.txt");
+
+        private string[] Keys = {
+            "Software\\Microsoft\\Windows\\CurrentVersion\\GameDVR|AppCaptureEnabled",
+            "System\\GameConfigStore|GameDVR_Enabled"
+        };
+
+        public string GetStatus()
+        {
+            var lines = new List<string>();
+            foreach (var entry in Keys)
+            {
+                var parts = entry.Split('|');
+                using (var key = Registry.CurrentUser.OpenSubKey(parts[0], false))
+                {
+                    object value = key == null ? null : key.GetValue(parts[1], null);
+                    lines.Add(parts[1] + ": " + (value == null ? "Windows varsayılanı / tanımsız" : Convert.ToString(value)));
+                }
+            }
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        public void DisableGameCapture()
+        {
+            BackupOnce();
+            using (var key = Registry.CurrentUser.CreateSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\GameDVR")) key.SetValue("AppCaptureEnabled", 0, RegistryValueKind.DWord);
+            using (var key = Registry.CurrentUser.CreateSubKey("System\\GameConfigStore")) key.SetValue("GameDVR_Enabled", 0, RegistryValueKind.DWord);
+        }
+
+        public void EnableGameCapture()
+        {
+            BackupOnce();
+            using (var key = Registry.CurrentUser.CreateSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\GameDVR")) key.SetValue("AppCaptureEnabled", 1, RegistryValueKind.DWord);
+            using (var key = Registry.CurrentUser.CreateSubKey("System\\GameConfigStore")) key.SetValue("GameDVR_Enabled", 1, RegistryValueKind.DWord);
+        }
+
+        public bool HasBackup { get { return File.Exists(_backupPath); } }
+
+        private void BackupOnce()
+        {
+            if (File.Exists(_backupPath)) return;
+            Directory.CreateDirectory(Path.GetDirectoryName(_backupPath));
+            var lines = new List<string>();
+            foreach (var entry in Keys)
+            {
+                var parts = entry.Split('|');
+                using (var key = Registry.CurrentUser.OpenSubKey(parts[0], false))
+                {
+                    object value = key == null ? null : key.GetValue(parts[1], null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+                    RegistryValueKind kind = RegistryValueKind.String;
+                    if (key != null && value != null) kind = key.GetValueKind(parts[1]);
+                    lines.Add(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(parts[0])) + "|" +
+                        Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(parts[1])) + "|" +
+                        (value == null ? "0" : "1") + "|" + (value == null ? "0" : ((int)kind).ToString()) + "|" +
+                        (value == null ? "" : Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(Convert.ToString(value)))));
+                }
+            }
+            File.WriteAllLines(_backupPath, lines);
+        }
+
+        public void RestoreBackup()
+        {
+            if (!File.Exists(_backupPath)) throw new InvalidOperationException("Geri yüklenecek tweak yedeği bulunamadı.");
+            foreach (var line in File.ReadAllLines(_backupPath))
+            {
+                var p = line.Split('|');
+                string path = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(p[0]));
+                string name = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(p[1]));
+                using (var key = Registry.CurrentUser.CreateSubKey(path))
+                {
+                    if (p[2] == "0") key.DeleteValue(name, false);
+                    else key.SetValue(name, System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(p[4])), (RegistryValueKind)int.Parse(p[3]));
+                }
+            }
+            File.Delete(_backupPath);
         }
     }
 
